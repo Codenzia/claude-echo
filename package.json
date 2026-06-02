@@ -1,8 +1,8 @@
 {
-  "name": "claude-whatsapp-bridge",
-  "displayName": "Claude WhatsApp Bridge",
-  "description": "Chat with your Claude Code agent from WhatsApp. Binds a Claude Code session to your WhatsApp number via open-wa.",
-  "version": "0.3.0",
+  "name": "claude-echo",
+  "displayName": "Claude Echo",
+  "description": "Chat with your Claude Code agent from WhatsApp, Telegram, Discord, or Slack.",
+  "version": "0.4.0",
   "publisher": "codenzia",
   "author": {
     "name": "Codenzia",
@@ -12,17 +12,19 @@
   "homepage": "https://codenzia.com",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Codenzia/claude-whatsapp-bridge"
+    "url": "https://github.com/Codenzia/claude-echo"
   },
   "bugs": {
-    "url": "https://github.com/Codenzia/claude-whatsapp-bridge/issues"
+    "url": "https://github.com/Codenzia/claude-echo/issues"
   },
   "keywords": [
     "claude",
     "claude code",
     "anthropic",
     "whatsapp",
-    "baileys",
+    "telegram",
+    "discord",
+    "slack",
     "bridge",
     "remote",
     "agent",
@@ -36,7 +38,7 @@
   ],
   "icon": "resources/icon-marketplace.png",
   "galleryBanner": {
-    "color": "#0B141A",
+    "color": "#181C24",
     "theme": "dark"
   },
   "main": "./out/extension.js",
@@ -45,174 +47,120 @@
   ],
   "contributes": {
     "commands": [
-      {
-        "command": "claudeWhatsApp.bindSessions",
-        "title": "Claude WhatsApp: Bind Claude Code sessions…",
-        "icon": "$(link)"
-      },
-      {
-        "command": "claudeWhatsApp.bindSession",
-        "title": "Claude WhatsApp: Bind Claude Code sessions… (alias)",
-        "icon": "$(link)"
-      },
-      {
-        "command": "claudeWhatsApp.unbindOne",
-        "title": "Claude WhatsApp: Unbind a single session…",
-        "icon": "$(remove)"
-      },
-      {
-        "command": "claudeWhatsApp.setActive",
-        "title": "Claude WhatsApp: Change active session…",
-        "icon": "$(star-empty)"
-      },
-      {
-        "command": "claudeWhatsApp.unbind",
-        "title": "Claude WhatsApp: Remove workspace binding",
-        "icon": "$(unlink)"
-      },
-      {
-        "command": "claudeWhatsApp.start",
-        "title": "Claude WhatsApp: Start bridge",
-        "icon": "$(play)"
-      },
-      {
-        "command": "claudeWhatsApp.stop",
-        "title": "Claude WhatsApp: Stop bridge",
-        "icon": "$(debug-stop)"
-      },
-      {
-        "command": "claudeWhatsApp.showQR",
-        "title": "Claude WhatsApp: Show WhatsApp QR code",
-        "icon": "$(device-mobile)"
-      },
-      {
-        "command": "claudeWhatsApp.testSend",
-        "title": "Claude WhatsApp: Send test message",
-        "icon": "$(send)"
-      },
-      {
-        "command": "claudeWhatsApp.refresh",
-        "title": "Claude WhatsApp: Refresh",
-        "icon": "$(refresh)"
-      },
-      {
-        "command": "claudeWhatsApp.showLogs",
-        "title": "Claude WhatsApp: Show logs",
-        "icon": "$(output)"
-      },
-      {
-        "command": "claudeWhatsApp.regenerateChallenge",
-        "title": "Claude WhatsApp: Regenerate verification code",
-        "icon": "$(key)"
-      },
-      {
-        "command": "claudeWhatsApp.showChallenge",
-        "title": "Claude WhatsApp: Show verification code",
-        "icon": "$(eye)"
-      }
+      { "command": "claudeEcho.bindSessions", "title": "Claude Echo: Bind Claude Code sessions…", "icon": "$(link)" },
+      { "command": "claudeEcho.unbindOne", "title": "Claude Echo: Unbind a single session…", "icon": "$(remove)" },
+      { "command": "claudeEcho.setActive", "title": "Claude Echo: Change active session…", "icon": "$(star-empty)" },
+      { "command": "claudeEcho.unbind", "title": "Claude Echo: Remove workspace binding", "icon": "$(unlink)" },
+      { "command": "claudeEcho.start", "title": "Claude Echo: Start bridge", "icon": "$(play)" },
+      { "command": "claudeEcho.stop", "title": "Claude Echo: Stop bridge", "icon": "$(debug-stop)" },
+      { "command": "claudeEcho.showQR", "title": "Claude Echo: Show WhatsApp QR code", "icon": "$(device-mobile)" },
+      { "command": "claudeEcho.testSend", "title": "Claude Echo: Send test message", "icon": "$(send)" },
+      { "command": "claudeEcho.refresh", "title": "Claude Echo: Refresh", "icon": "$(refresh)" },
+      { "command": "claudeEcho.showLogs", "title": "Claude Echo: Show logs", "icon": "$(output)" },
+      { "command": "claudeEcho.resetAuth", "title": "Claude Echo: Reset gateway auth", "icon": "$(refresh)" },
+      { "command": "claudeEcho.regenerateChallenge", "title": "Claude Echo: Regenerate verification code (WhatsApp)", "icon": "$(key)" },
+      { "command": "claudeEcho.showChallenge", "title": "Claude Echo: Show verification code (WhatsApp)", "icon": "$(eye)" }
     ],
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "claudeWhatsApp",
-          "title": "Claude WhatsApp",
+          "id": "claudeEcho",
+          "title": "Claude Echo",
           "icon": "resources/icon.svg"
         }
       ]
     },
     "views": {
-      "claudeWhatsApp": [
+      "claudeEcho": [
         {
-          "id": "claudeWhatsApp.bridge",
+          "id": "claudeEcho.main",
           "name": "Bridge",
           "icon": "resources/icon.svg",
-          "contextualTitle": "Claude WhatsApp"
+          "contextualTitle": "Claude Echo"
         }
       ]
     },
     "viewsWelcome": [
       {
-        "view": "claudeWhatsApp.bridge",
-        "contents": "No Claude Code sessions bound yet.\n\nBind one or more sessions to your WhatsApp number, then chat with your agent from anywhere. Tag-based routing lets you switch between sessions from your phone.\n\n[Bind Claude Code sessions…](command:claudeWhatsApp.bindSessions)\n\nDeveloped by [Codenzia](https://codenzia.com)."
+        "view": "claudeEcho.main",
+        "contents": "No Claude Code sessions bound yet.\n\nChat with your Claude Code agent from WhatsApp, Telegram, Discord, or Slack. Bind one or more sessions and route between them with tags.\n\n[Bind Claude Code sessions…](command:claudeEcho.bindSessions)\n\nDeveloped by [Codenzia](https://codenzia.com)."
       }
     ],
     "menus": {
       "view/title": [
-        {
-          "command": "claudeWhatsApp.bindSessions",
-          "when": "view == claudeWhatsApp.bridge",
-          "group": "navigation@1"
-        },
-        {
-          "command": "claudeWhatsApp.start",
-          "when": "view == claudeWhatsApp.bridge && !claudeWhatsApp:running",
-          "group": "navigation@2"
-        },
-        {
-          "command": "claudeWhatsApp.stop",
-          "when": "view == claudeWhatsApp.bridge && claudeWhatsApp:running",
-          "group": "navigation@2"
-        },
-        {
-          "command": "claudeWhatsApp.showLogs",
-          "when": "view == claudeWhatsApp.bridge",
-          "group": "navigation@3"
-        },
-        {
-          "command": "claudeWhatsApp.refresh",
-          "when": "view == claudeWhatsApp.bridge",
-          "group": "navigation@4"
-        }
+        { "command": "claudeEcho.bindSessions", "when": "view == claudeEcho.main", "group": "navigation@1" },
+        { "command": "claudeEcho.start", "when": "view == claudeEcho.main && !claudeEcho:running", "group": "navigation@2" },
+        { "command": "claudeEcho.stop", "when": "view == claudeEcho.main && claudeEcho:running", "group": "navigation@2" },
+        { "command": "claudeEcho.showLogs", "when": "view == claudeEcho.main", "group": "navigation@3" },
+        { "command": "claudeEcho.refresh", "when": "view == claudeEcho.main", "group": "navigation@4" }
       ]
     },
     "configuration": {
-      "title": "Claude WhatsApp Bridge",
+      "title": "Claude Echo",
       "properties": {
-        "claudeWhatsApp.allowedNumber": {
-          "type": "string",
-          "default": "",
-          "scope": "machine",
-          "description": "Single allowed WhatsApp number in E.164 format (e.g. +15551234567). Messages from any other number are ignored. REQUIRED. Locked to user/machine settings — workspace folders cannot override."
-        },
-        "claudeWhatsApp.claudeCliPath": {
+        "claudeEcho.claudeCliPath": {
           "type": "string",
           "default": "claude",
           "scope": "machine",
-          "description": "Path to the Claude Code CLI binary. Default assumes it is on PATH. Locked to user/machine settings to prevent a malicious workspace's .vscode/settings.json from redirecting the bridge to a different binary."
+          "description": "Path to the Claude Code CLI binary. Locked to user/machine scope so a malicious workspace cannot redirect the bridge."
         },
-        "claudeWhatsApp.responseTimeoutMs": {
+        "claudeEcho.responseTimeoutMs": {
           "type": "number",
           "default": 120000,
           "minimum": 5000,
-          "description": "Maximum time (ms) to wait for the Claude CLI to respond before sending a timeout reply on WhatsApp."
+          "description": "Maximum time (ms) to wait for the Claude CLI to respond before sending a timeout reply."
         },
-        "claudeWhatsApp.autoStart": {
+        "claudeEcho.autoStart": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically start the bridge on workspace activation when a verified binding exists. OFF by default for safety — turn on only after you've confirmed your binding works."
+          "description": "Automatically start the bridge on workspace activation when a verified binding exists."
         },
-        "claudeWhatsApp.maxMessagesPerHour": {
+        "claudeEcho.maxMessagesPerHour": {
           "type": "number",
           "default": 60,
           "minimum": 0,
-          "description": "Drop inbound messages once this many have been processed in the last 60 minutes. 0 disables the limit. Defends against billing runaway if WhatsApp gets compromised."
+          "description": "Drop inbound messages above this rate. 0 disables."
         },
-        "claudeWhatsApp.maxMessagesPerDay": {
+        "claudeEcho.maxMessagesPerDay": {
           "type": "number",
           "default": 500,
           "minimum": 0,
-          "description": "Same as above, per rolling 24 hours."
+          "description": "Same, per rolling 24 hours."
         },
-        "claudeWhatsApp.maxInboundBytes": {
+        "claudeEcho.maxInboundBytes": {
           "type": "number",
           "default": 4096,
           "minimum": 256,
-          "description": "Truncate inbound WhatsApp message bodies to this many bytes before forwarding to Claude. Caps per-message Claude cost."
+          "description": "Truncate inbound bodies to this many bytes."
         },
-        "claudeWhatsApp.verboseLogging": {
+        "claudeEcho.verboseLogging": {
           "type": "boolean",
           "default": false,
-          "description": "Log full WhatsApp message bodies to the Output Channel and Activity tree. OFF by default — only an 8-char prefix is shown to avoid leaking private chat content if you share logs."
+          "description": "Log full message bodies in the Output Channel and Activity tree. Off by default for privacy."
+        },
+        "claudeEcho.telegram.botToken": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Telegram bot token from @BotFather (looks like 1234567:AAE…). Required for the Telegram gateway."
+        },
+        "claudeEcho.discord.botToken": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Discord bot token from https://discord.com/developers/applications. Required for the Discord gateway. The bot must have the MESSAGE_CONTENT privileged intent enabled."
+        },
+        "claudeEcho.slack.appToken": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Slack app-level token starting with xapp-. Required for the Slack gateway (Socket Mode)."
+        },
+        "claudeEcho.slack.botToken": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "Slack bot token starting with xoxb-. Required for the Slack gateway. Needs scopes: chat:write, im:history, im:read."
         }
       }
     }
@@ -229,7 +177,10 @@
     "typescript": "^5.4.0"
   },
   "dependencies": {
+    "@slack/socket-mode": "^2.0.6",
+    "@slack/web-api": "^7.10.0",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
+    "discord.js": "^14.16.3",
     "qrcode": "^1.5.3"
   }
 }

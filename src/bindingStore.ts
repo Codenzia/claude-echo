@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { GatewayKind } from './gateway';
 
 export interface PendingChallenge {
   code: string;
@@ -15,7 +16,9 @@ export interface SessionBinding {
 
 export interface WorkspaceBinding {
   workspaceFolder: string;
-  allowedNumber: string;
+  gateway: GatewayKind;
+  /** WhatsApp: phone number (E.164). Telegram/Discord/Slack: chat or user identifier. */
+  allowedId: string;
   verified: boolean;
   pendingChallenge?: PendingChallenge;
   activeSessionId?: string;
@@ -27,8 +30,12 @@ interface StoreShape {
   [workspaceFolder: string]: WorkspaceBinding;
 }
 
-const STORE_KEY_V2 = 'claudeWhatsApp.workspace.v2';
-const STORE_KEY_V1 = 'claudeWhatsApp.binding.v1';
+const STORE_KEY = 'claudeEcho.workspace.v1';
+const OLD_KEYS = [
+  'claudeBridge.workspace.v1',
+  'claudeWhatsApp.workspace.v2',
+  'claudeWhatsApp.binding.v1'
+];
 
 function normalizeKey(p: string): string {
   return p.replace(/\\/g, '/').toLowerCase();
@@ -42,38 +49,64 @@ export class BindingStore {
   constructor(private readonly ctx: vscode.ExtensionContext) {}
 
   private read(): StoreShape {
-    const v2 = this.ctx.globalState.get<StoreShape>(STORE_KEY_V2, {});
-    if (Object.keys(v2).length > 0 || this.migratedThisSession) { return v2; }
-    // First read of v2 — try to migrate any v1 entries.
-    const v1 = this.ctx.globalState.get<any>(STORE_KEY_V1, {});
-    const migrated: StoreShape = {};
-    for (const [key, b] of Object.entries<any>(v1 ?? {})) {
-      if (!b || !b.sessionId) { continue; }
-      const tag = slugifyForMigration(b.sessionTitle ?? 'session');
-      migrated[key] = {
-        workspaceFolder: b.workspaceFolder ?? key,
-        allowedNumber: b.allowedNumber ?? '',
-        verified: !!b.verified,
-        pendingChallenge: b.pendingChallenge,
-        activeSessionId: b.sessionId,
-        sessions: [{
-          sessionId: b.sessionId,
-          sessionTitle: b.sessionTitle ?? '(untitled)',
-          tag,
-          addedAt: b.createdAt ?? Date.now()
-        }],
-        createdAt: b.createdAt ?? Date.now()
-      };
+    const cur = this.ctx.globalState.get<StoreShape>(STORE_KEY, {});
+    if (Object.keys(cur).length > 0 || this.migratedThisSession) { return cur; }
+
+    let merged: StoreShape = {};
+
+    // Try v0.3.x (claudeBridge.workspace.v1) and v0.3.0 (claudeWhatsApp.workspace.v2) — same shape.
+    for (const oldKey of OLD_KEYS.slice(0, 2)) {
+      const v2 = this.ctx.globalState.get<any>(oldKey, {});
+      if (!v2 || Object.keys(v2).length === 0) { continue; }
+      for (const [key, b] of Object.entries<any>(v2)) {
+        if (!b) { continue; }
+        merged[key] = {
+          workspaceFolder: b.workspaceFolder ?? key,
+          gateway: b.gateway ?? 'whatsapp',
+          allowedId: b.allowedId ?? b.allowedNumber ?? '',
+          verified: !!b.verified,
+          pendingChallenge: b.pendingChallenge,
+          activeSessionId: b.activeSessionId ?? b.sessions?.[0]?.sessionId,
+          sessions: Array.isArray(b.sessions) ? b.sessions : [],
+          createdAt: b.createdAt ?? Date.now()
+        };
+      }
+      if (Object.keys(merged).length > 0) { break; }
     }
+
+    if (Object.keys(merged).length === 0) {
+      // Try the v0.2.x single-session shape.
+      const v1 = this.ctx.globalState.get<any>(OLD_KEYS[2], {});
+      for (const [key, b] of Object.entries<any>(v1 ?? {})) {
+        if (!b || !b.sessionId) { continue; }
+        const tag = slugifyForMigration(b.sessionTitle ?? 'session');
+        merged[key] = {
+          workspaceFolder: b.workspaceFolder ?? key,
+          gateway: 'whatsapp',
+          allowedId: b.allowedNumber ?? '',
+          verified: !!b.verified,
+          pendingChallenge: b.pendingChallenge,
+          activeSessionId: b.sessionId,
+          sessions: [{
+            sessionId: b.sessionId,
+            sessionTitle: b.sessionTitle ?? '(untitled)',
+            tag,
+            addedAt: b.createdAt ?? Date.now()
+          }],
+          createdAt: b.createdAt ?? Date.now()
+        };
+      }
+    }
+
     this.migratedThisSession = true;
-    if (Object.keys(migrated).length > 0) {
-      void this.ctx.globalState.update(STORE_KEY_V2, migrated);
+    if (Object.keys(merged).length > 0) {
+      void this.ctx.globalState.update(STORE_KEY, merged);
     }
-    return migrated;
+    return merged;
   }
 
   private async write(s: StoreShape): Promise<void> {
-    await this.ctx.globalState.update(STORE_KEY_V2, s);
+    await this.ctx.globalState.update(STORE_KEY, s);
     this._onChange.fire();
   }
 

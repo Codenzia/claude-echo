@@ -1,32 +1,15 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import { logError, logInfo, logWarn } from './logger';
-
-export interface IncomingMessage {
-  from: string;
-  fromNumber: string;
-  body: string;
-  isGroup: boolean;
-  timestamp: number;
-}
+import { Gateway, GatewayKind, GatewayStatus, IncomingMessage } from './gateway';
 
 export interface WaConfig {
   authDir: string;
 }
 
-export type WaStatus =
-  | 'idle'
-  | 'starting'
-  | 'qr'
-  | 'connecting'
-  | 'ready'
-  | 'stopping'
-  | 'error';
-
 type BaileysModule = typeof import('@whiskeysockets/baileys');
 
 function loadBaileys(): BaileysModule {
-  // CommonJS require; types are picked up from the package
   return require('@whiskeysockets/baileys');
 }
 
@@ -36,9 +19,7 @@ function digits(s: string): string {
 
 function extractText(message: any): string {
   if (!message) { return ''; }
-  if (typeof message.conversation === 'string' && message.conversation) {
-    return message.conversation;
-  }
+  if (typeof message.conversation === 'string' && message.conversation) { return message.conversation; }
   if (message.extendedTextMessage?.text) { return String(message.extendedTextMessage.text); }
   if (message.imageMessage?.caption) { return String(message.imageMessage.caption); }
   if (message.videoMessage?.caption) { return String(message.videoMessage.caption); }
@@ -46,7 +27,6 @@ function extractText(message: any): string {
   return '';
 }
 
-// Minimal silent logger that satisfies the pino-compatible shape Baileys expects.
 function silentLogger(): any {
   const noop = () => undefined;
   const self: any = {
@@ -57,40 +37,51 @@ function silentLogger(): any {
   return self;
 }
 
-export class WhatsAppClient {
-  private status: WaStatus = 'idle';
+/** Map Baileys DisconnectReason status code → human-readable name (best-effort). */
+function reasonName(b: any, code?: number): string {
+  if (code === undefined || !b?.DisconnectReason) { return '(no code)'; }
+  const dr = b.DisconnectReason;
+  const entry = Object.entries(dr).find(([_, v]) => v === code);
+  return entry ? entry[0] : String(code);
+}
+
+export class WhatsAppClient implements Gateway {
+  readonly kind: GatewayKind = 'whatsapp';
+  private status: GatewayStatus = 'idle';
   private sock?: any;
   private latestQr?: string;
-  private cfg?: WaConfig;
+  private cfg: WaConfig;
   private shuttingDown = false;
   private reconnectTimer?: NodeJS.Timeout;
-  private readonly _onStatus = new vscode.EventEmitter<WaStatus>();
+  private reconnectAttempt = 0;
+  private readonly _onStatus = new vscode.EventEmitter<GatewayStatus>();
   private readonly _onQr = new vscode.EventEmitter<string>();
   private readonly _onMessage = new vscode.EventEmitter<IncomingMessage>();
   readonly onStatus = this._onStatus.event;
   readonly onQr = this._onQr.event;
   readonly onMessage = this._onMessage.event;
 
-  getStatus(): WaStatus { return this.status; }
+  constructor(cfg: WaConfig) { this.cfg = cfg; }
+
+  getStatus(): GatewayStatus { return this.status; }
   getLatestQr(): string | undefined { return this.latestQr; }
 
-  private setStatus(s: WaStatus): void {
+  private setStatus(s: GatewayStatus): void {
     this.status = s;
     this._onStatus.fire(s);
   }
 
-  async start(cfg: WaConfig): Promise<void> {
+  async start(): Promise<void> {
     if (this.status === 'starting' || this.status === 'ready') {
-      logInfo(`start() called while status=${this.status}; ignoring.`);
+      logInfo(`WhatsApp start() called while status=${this.status}; ignoring.`);
       return;
     }
-    this.cfg = cfg;
     this.shuttingDown = false;
     this.setStatus('starting');
     try {
-      fs.mkdirSync(cfg.authDir, { recursive: true });
+      fs.mkdirSync(this.cfg.authDir, { recursive: true });
       const baileys: any = loadBaileys();
-      const { state, saveCreds } = await baileys.useMultiFileAuthState(cfg.authDir);
+      const { state, saveCreds } = await baileys.useMultiFileAuthState(this.cfg.authDir);
       let version: number[] | undefined;
       try {
         const v = await baileys.fetchLatestBaileysVersion();
@@ -107,14 +98,14 @@ export class WhatsAppClient {
         markOnlineOnConnect: false,
         syncFullHistory: false,
         logger: silentLogger(),
-        browser: ['Claude WhatsApp Bridge', 'Chrome', '1.0']
+        browser: ['Claude Bridge', 'Chrome', '1.0']
       });
 
       this.sock.ev.on('creds.update', saveCreds);
-      this.sock.ev.on('connection.update', (u: any) => this.handleConnectionUpdate(u));
+      this.sock.ev.on('connection.update', (u: any) => this.handleConnectionUpdate(u, baileys));
       this.sock.ev.on('messages.upsert', (m: any) => this.handleIncoming(m));
 
-      logInfo(`Baileys started (authDir=${cfg.authDir})`);
+      logInfo(`Baileys started (authDir=${this.cfg.authDir})`);
     } catch (err) {
       this.setStatus('error');
       logError('Failed to start Baileys', err);
@@ -122,7 +113,7 @@ export class WhatsAppClient {
     }
   }
 
-  private handleConnectionUpdate(u: any): void {
+  private handleConnectionUpdate(u: any, baileys: any): void {
     if (u.qr) {
       this.latestQr = u.qr;
       this.setStatus('qr');
@@ -133,13 +124,14 @@ export class WhatsAppClient {
       if (this.status !== 'qr') { this.setStatus('connecting'); }
     } else if (u.connection === 'open') {
       this.latestQr = undefined;
+      this.reconnectAttempt = 0;
       this.setStatus('ready');
-      logInfo('Bridge listening for WhatsApp messages.');
+      logInfo('WhatsApp bridge listening.');
     } else if (u.connection === 'close') {
-      const baileys: any = loadBaileys();
       const code = u.lastDisconnect?.error?.output?.statusCode;
+      const name = reasonName(baileys, code);
       const reason = u.lastDisconnect?.error?.message ?? '';
-      logWarn(`WhatsApp connection closed (code=${code}, reason=${reason}).`);
+      logWarn(`WhatsApp connection closed: ${name} (code=${code}); ${reason}`);
       this.sock = undefined;
       if (this.shuttingDown) {
         this.setStatus('idle');
@@ -147,19 +139,19 @@ export class WhatsAppClient {
       }
       if (code === baileys.DisconnectReason?.loggedOut) {
         logWarn('Device unlinked remotely; clearing cached auth state.');
-        if (this.cfg) {
-          try { fs.rmSync(this.cfg.authDir, { recursive: true, force: true }); } catch { /* ignore */ }
-        }
+        try { fs.rmSync(this.cfg.authDir, { recursive: true, force: true }); } catch { /* ignore */ }
+        this.latestQr = undefined;
         this.setStatus('idle');
         return;
       }
       this.setStatus('connecting');
-      const cfg = this.cfg;
-      if (!cfg) { return; }
+      // Exponential backoff: 2s, 4s, 8s, 16s, capped at 30s.
+      this.reconnectAttempt = Math.min(this.reconnectAttempt + 1, 5);
+      const delay = Math.min(2000 * Math.pow(2, this.reconnectAttempt - 1), 30_000);
       this.reconnectTimer = setTimeout(() => {
         this.status = 'idle';
-        this.start(cfg).catch((err) => logError('Reconnect failed', err));
-      }, 2000);
+        this.start().catch((err) => logError('Reconnect failed', err));
+      }, delay);
     }
   }
 
@@ -172,9 +164,9 @@ export class WhatsAppClient {
       if (!remoteJid) { continue; }
       const isGroup = remoteJid.endsWith('@g.us');
       const body = extractText(msg.message);
-      const fromNumber = digits(remoteJid.split('@')[0]);
+      const senderId = digits(remoteJid.split('@')[0]);
       const ts = typeof msg.messageTimestamp === 'number' ? msg.messageTimestamp * 1000 : Date.now();
-      this._onMessage.fire({ from: remoteJid, fromNumber, body, isGroup, timestamp: ts });
+      this._onMessage.fire({ from: remoteJid, senderId, body, isGroup, timestamp: ts });
     }
   }
 
@@ -194,27 +186,20 @@ export class WhatsAppClient {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = undefined;
     }
+    this.reconnectAttempt = 0;
     if (!this.sock) {
       this.setStatus('idle');
       return;
     }
     this.shuttingDown = true;
     this.setStatus('stopping');
-    try {
-      if (typeof this.sock.logout === 'function' && this.status === 'ready') {
-        // logout would unlink the device; we only want to disconnect — use end() instead
-      }
-      this.sock.end(undefined);
-    } catch (err) {
-      logWarn(`Baileys end() raised: ${err instanceof Error ? err.message : err}`);
-    }
+    try { this.sock.end(undefined); }
+    catch (err) { logWarn(`Baileys end() raised: ${err instanceof Error ? err.message : err}`); }
     this.sock = undefined;
     this.latestQr = undefined;
     this.setStatus('idle');
-    logInfo('Bridge stopped.');
+    logInfo('WhatsApp bridge stopped.');
   }
 }
 
-export function digitsOnly(num: string): string {
-  return digits(num);
-}
+export function digitsOnly(num: string): string { return digits(num); }

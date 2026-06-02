@@ -1,142 +1,135 @@
-# Claude WhatsApp Bridge
+# Claude Echo
 
-> Chat with your Claude Code agent from WhatsApp. Developed by [**Codenzia**](https://codenzia.com).
+> Chat with your Claude Code agent from WhatsApp, Telegram, Discord, or Slack. Developed by [**Codenzia**](https://codenzia.com).
 
-Bind a Claude Code session running in your VSCode workspace to your WhatsApp number, and talk to your agent from anywhere — your phone, a borrowed laptop, your kitchen — by texting yourself. Replies appear on WhatsApp; the conversation is recorded in the same Claude Code transcript you can open in the IDE later.
+Bind your Claude Code conversations to a messaging gateway and talk to your agent from anywhere — your phone, a borrowed laptop, your kitchen. Replies echo back through the same channel. The conversation lives in the same Claude Code transcript you can open in the IDE later.
 
-## How it works
+## Pick your gateway
 
-```
-WhatsApp message (from your allowlisted number)
-   │
-   ▼
-Baileys WebSocket client embedded in the extension
-   │
-   ▼
-claude --print --resume <sessionId> --output-format json "<your text>"
-   │     (appends to ~/.claude/projects/.../<sessionId>.jsonl on disk)
-   ▼
-Assistant response captured from CLI stdout
-   │
-   ▼
-Baileys.sendText(your number, reply)
-```
+| Gateway | Setup | Pain | Notes |
+| --- | --- | --- | --- |
+| **Telegram** (recommended) | Create a bot via [@BotFather](https://t.me/BotFather), paste token. | ⭐ 30 seconds | Free, official API, no QR, no Chromium. Polling — no public URL needed. |
+| **Discord** | Create app at [discord.com/developers](https://discord.com/developers/applications), enable the **MESSAGE_CONTENT** privileged intent, paste bot token. | ⭐ ~2 min | Free, official. DM the bot from anywhere. |
+| **Slack** | Create Slack app, enable Socket Mode, install to workspace, paste app + bot tokens. | 🟡 ~5 min | Free, official. Great if your team is already in Slack. |
+| **WhatsApp** | Scan QR with WhatsApp Web. | 🔴 Fragile | Personal number is the win, but the underlying library (Baileys) is unofficial and may break with WhatsApp protocol updates. |
 
-The IDE tab for the bound session shows the new exchanges next time it's opened — there is no live-refresh of an open tab (the Claude Code extension does not expose an inject-message API at this time).
+## Quick start (Telegram)
 
-## Quick start
+1. Open Telegram → search **@BotFather** → `/newbot` → follow the prompts to name your bot → copy the token.
+2. Open VSCode settings → search `claudeEcho.telegram.botToken` → paste your token.
+3. On Telegram, search **@userinfobot** → it replies with your numeric user ID — copy it.
+4. In VSCode click the **Claude Echo bookmark icon** in the Activity Bar → **Bind Claude Code sessions…**
+5. Tick the sessions you want available, pick **Telegram**, paste your user ID.
+6. Click **Start bridge**. Open your bot on Telegram and say "hi".
 
-1. **Install** this extension and the [Claude Code](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code) extension.
-2. Open one or more Claude Code conversations in the workspace you want to bridge.
-3. Click the **WhatsApp bubble icon** in the Activity Bar → **Bind Claude Code sessions…**
-4. **Tick all the sessions** you want available via WhatsApp (space toggles, Enter confirms). Each picked session gets a short auto-derived tag like `serveeta`, `bmp`, `dropflow`.
-5. Enter your phone number in E.164 (e.g. `+15551234567`). VSCode displays a **verification code** like `XK7-9PQ`.
-6. Click **Start bridge**. A QR-code panel opens — scan it from **WhatsApp → Settings → Linked Devices → Link a Device**.
-7. **Send the verification code** from your phone via WhatsApp to your own number. The bridge replies "Number verified ✓" and lists your bound sessions.
-8. Chat away. By default, every message goes to whichever session is currently *active* — see the routing commands below to switch.
-
-After the first scan, the auth is cached under the extension's global storage, so subsequent restarts skip the QR step. After verification, the bridge remembers the workspace is trusted across all bound sessions.
+No QR, no Chromium, no reconnect loops — Telegram just works.
 
 ## Routing across many sessions
 
-The bridge has one *active* session per workspace. Messages without a tag are routed there. Switch active or one-off route via these WhatsApp commands:
+Echo holds an *active* session per workspace. Untagged messages go there. Switch via these commands (work on every gateway):
 
 | You type | What happens |
 | --- | --- |
-| `/list` | Lists all bound sessions, marks the active one with `*` |
-| `/use serveeta` (or `/switch serveeta`) | Sets `serveeta` as the active session |
-| `/where` | Replies with the current active session |
-| `#bmp how's the deploy?` | One-off — routes this single message to `bmp` but leaves the active pointer unchanged |
-| `/help` | Shows the command reference on WhatsApp |
+| `/list` | Lists all bound sessions, marks active with `*` |
+| `/use serveeta` | Sets `serveeta` as active |
+| `/where` | Replies with current active |
+| `#bmp how's the deploy?` | One-off — routes this single message to `bmp`, doesn't change active |
+| `/help` | Command reference |
 | anything else | Forwarded to the currently active session |
 
-When the workspace has more than one bound session, replies are prefixed with `[tag]` so you always know which session answered.
+When more than one session is bound, replies are prefixed with `[tag]` so you always know who answered.
 
-## Commands
+## Commands (in VSCode)
 
 | Command | Description |
 | --- | --- |
-| `Claude WhatsApp: Bind Claude Code sessions…` | Multi-pick sessions and tie them to your WhatsApp number |
-| `Claude WhatsApp: Change active session…` | Pick a different session to be the default route |
-| `Claude WhatsApp: Unbind a single session…` | Drop one session from the workspace binding |
-| `Claude WhatsApp: Remove workspace binding` | Clear all bindings + the verified number (full reset) |
-| `Claude WhatsApp: Start bridge` / `Stop bridge` | Manual control |
-| `Claude WhatsApp: Show WhatsApp QR code` | Reveal the QR panel for first-time or re-auth |
-| `Claude WhatsApp: Send test message` | Sends a `[bridge] test` message to verify outbound path |
-| `Claude WhatsApp: Show logs` | Open the diagnostic Output Channel |
-| `Claude WhatsApp: Show verification code` | Reveal the current pending verification code |
-| `Claude WhatsApp: Regenerate verification code` | Issue a fresh code (e.g. if the previous one expired) |
+| `Claude Echo: Bind Claude Code sessions…` | Multi-pick sessions, choose a gateway, tie to your allowed user/number |
+| `Claude Echo: Change active session…` | Pick a different default-route session |
+| `Claude Echo: Unbind a single session…` | Drop one session from the workspace binding |
+| `Claude Echo: Remove workspace binding` | Clear all bindings (full reset for this workspace) |
+| `Claude Echo: Start bridge` / `Stop bridge` | Manual control |
+| `Claude Echo: Show WhatsApp QR code` | For the WhatsApp gateway only |
+| `Claude Echo: Send test message` | Sanity-check outbound path |
+| `Claude Echo: Show logs` | Open the diagnostic Output Channel |
+| `Claude Echo: Reset gateway auth` | Wipe cached WhatsApp creds and reconnect from scratch |
+| `Claude Echo: Show / Regenerate verification code` | WhatsApp verification handshake |
 
 ## Settings
 
 | Key | Default | Description |
 | --- | --- | --- |
-| `claudeWhatsApp.allowedNumber` | `""` | Single E.164 phone number permitted to message Claude. Anything else is dropped. |
-| `claudeWhatsApp.claudeCliPath` | `"claude"` | Path to the Claude Code CLI binary. |
-| `claudeWhatsApp.responseTimeoutMs` | `120000` | Max time to wait for a Claude reply before sending a timeout error to WhatsApp. |
-| `claudeWhatsApp.autoStart` | `false` | Auto-start the bridge on activation when a **verified** binding exists. Off by default for safety. |
-| `claudeWhatsApp.maxMessagesPerHour` | `60` | Drop inbound messages above this rate. `0` disables. |
-| `claudeWhatsApp.maxMessagesPerDay` | `500` | Same, rolling 24-hour window. |
-| `claudeWhatsApp.maxInboundBytes` | `4096` | Truncate inbound message bodies to this many bytes to cap per-message Claude cost. |
-| `claudeWhatsApp.verboseLogging` | `false` | Log full message bodies. Off by default — logs and the activity tree only show an 8-char prefix to avoid leaking chat content if you share diagnostics. |
+| `claudeEcho.claudeCliPath` | `"claude"` | Path to the Claude CLI binary. Machine-scoped. |
+| `claudeEcho.responseTimeoutMs` | `120000` | Max wait for a Claude reply. |
+| `claudeEcho.autoStart` | `false` | Start bridge on workspace activation when a verified binding exists. |
+| `claudeEcho.maxMessagesPerHour` | `60` | Drop inbound above this rate. `0` disables. |
+| `claudeEcho.maxMessagesPerDay` | `500` | Rolling 24-hour cap. |
+| `claudeEcho.maxInboundBytes` | `4096` | Truncate inbound bodies to cap Claude cost. |
+| `claudeEcho.verboseLogging` | `false` | Off by default — only an 8-char prefix is logged so private chat content doesn't leak in shared diagnostics. |
+| `claudeEcho.telegram.botToken` | `""` | Telegram bot token from @BotFather. Machine-scoped. |
+| `claudeEcho.discord.botToken` | `""` | Discord bot token. Bot needs the MESSAGE_CONTENT intent enabled. Machine-scoped. |
+| `claudeEcho.slack.appToken` | `""` | Slack app-level token (`xapp-…`). Machine-scoped. |
+| `claudeEcho.slack.botToken` | `""` | Slack bot token (`xoxb-…`). Needs scopes `chat:write`, `im:history`, `im:read`. Machine-scoped. |
 
 ## Security
 
-The bridge has several layers of defense, but you should understand each one.
-
-### Allowlist + verification challenge
-
-Only the single phone number configured in `claudeWhatsApp.allowedNumber` is accepted as a sender. On first bind, the extension issues a one-time alphanumeric **verification code** (e.g. `XK7-9PQ`) that you must echo back via WhatsApp from the configured number before any messages are forwarded to Claude. This catches the most common mistake — typing the wrong number — and confirms you actually control the phone.
-
-Codes expire 30 minutes after issue. Run **Claude WhatsApp: Regenerate verification code** to issue a fresh one.
-
-### Settings are user/machine-scoped
-
-`claudeWhatsApp.claudeCliPath` and `claudeWhatsApp.allowedNumber` cannot be overridden by a workspace's `.vscode/settings.json`. A malicious workspace can't redirect the bridge to a different CLI binary or change which phone number is allowed.
-
-### Rate limits
-
-Default 60 messages/hour and 500/day are enforced before any Claude CLI invocation. If a sender's account is compromised, the blast radius (and Claude billing exposure) is capped. Adjust via `claudeWhatsApp.maxMessagesPerHour` / `maxMessagesPerDay`.
-
-### Message body truncation
-
-Inbound bodies above `claudeWhatsApp.maxInboundBytes` (default 4 KB) are truncated before being sent to Claude.
-
-### Group messages
-
-Always dropped. Group chats can have ~256 members, any of whom could "speak as" the senders.
-
-### WhatsApp auth state on disk
-
-After scanning the QR, Baileys persists multi-device auth keys at:
-
-- Windows: `%APPDATA%\Code\User\globalStorage\codenzia.claude-whatsapp-bridge\wa-auth\`
-- macOS: `~/Library/Application Support/Code/User/globalStorage/codenzia.claude-whatsapp-bridge/wa-auth/`
-- Linux: `~/.config/Code/User/globalStorage/codenzia.claude-whatsapp-bridge/wa-auth/`
-
-Anyone who can read this directory can act as a linked WhatsApp device tied to your account. NTFS / POSIX user-only perms are the only protection. If you suspect leakage: open WhatsApp on your phone → Linked Devices → unlink the "Claude WhatsApp Bridge" entry; the extension will require a fresh QR scan.
+- **Sender allowlist.** Each binding stores a single allowed identifier (phone number for WhatsApp, numeric user ID for Telegram/Discord, Slack user ID). Messages from anything else are silently dropped and logged.
+- **WhatsApp verification challenge.** Bindings to a WhatsApp number must first echo a one-time alphanumeric code (e.g. `XK7-9PQ`) from the configured phone before any Claude call is made. Catches phone-number typos and confirms possession.
+- **Rate limits.** 60/h and 500/d by default; configurable.
+- **Body truncation.** Inbound bodies are capped at `maxInboundBytes`.
+- **Machine-scoped settings.** Tokens, CLI path, and allowed numbers cannot be overridden by a workspace's `.vscode/settings.json`.
+- **Group messages dropped.** All gateways: group chats are ignored.
 
 ### The unfixable risk
 
-WhatsApp **is** the auth boundary. Anyone messaging from the allowed number drives your Claude agent with whatever tools that workspace's Claude Code has (Bash, Edit, Web, MCP). Treat that phone number / WhatsApp session like an SSH key.
+The agent has the same tools Claude Code gave it. Anyone who can send messages from the allowed identifier drives your agent with whatever permissions it already has — bash, file edits, web fetches, MCP servers. Treat the allowed identifier (your phone, your Telegram account, your Discord user) like an SSH key.
 
-## Risks you should know about
+## Detailed setup per gateway
 
-1. **WhatsApp Terms of Service** — [Baileys](https://github.com/WhiskeySockets/Baileys) speaks the WhatsApp multi-device WebSocket protocol directly (no browser automation). Like all unofficial WhatsApp clients, using it may violate WhatsApp's ToS, and your account could in theory be suspended. Use at your own risk.
-2. **Cost** — every inbound message kicks off one Claude API turn. If a malicious party gets hold of your phone number / SIM, the bill is yours.
-3. **Footprint** — small. Baileys is a pure-WebSocket library with no Chromium dependency (~5 MB extension install vs. ~150 MB for Puppeteer-based alternatives).
-4. **No real-time IDE display** — the IDE tab for the bound session does not auto-refresh when WhatsApp messages arrive. Close and reopen the tab to see the latest transcript.
-5. **Concurrency** — don't actively type into the IDE tab while messages are flowing via WhatsApp. The two writers share a `.jsonl` transcript and can race.
+### Telegram
+
+1. Talk to [@BotFather](https://t.me/BotFather) → `/newbot` → pick name + username → copy token.
+2. Talk to [@userinfobot](https://t.me/userinfobot) → it replies with your numeric ID.
+3. VSCode settings → `claudeEcho.telegram.botToken` → paste.
+4. Run **Bind Claude Code sessions…** → pick Telegram → paste your user ID.
+
+### Discord
+
+1. Go to [discord.com/developers/applications](https://discord.com/developers/applications) → New Application.
+2. Bot tab → **Add Bot** → Reset Token → copy.
+3. Privileged Gateway Intents → enable **MESSAGE CONTENT INTENT**.
+4. OAuth2 → URL Generator → scopes `bot`, permissions `Send Messages`, `Read Message History` — open the URL and authorize the bot (you can install it to no server if it's just for DMs).
+5. VSCode settings → `claudeEcho.discord.botToken` → paste.
+6. In Discord (Settings → Advanced → enable Developer Mode), right-click your name → Copy User ID.
+7. Run **Bind Claude Code sessions…** → pick Discord → paste your user ID.
+
+### Slack
+
+1. Go to [api.slack.com/apps](https://api.slack.com/apps) → Create New App → From scratch.
+2. Socket Mode → Enable → generate app-level token with `connections:write` (starts `xapp-…`).
+3. OAuth & Permissions → bot scopes: `chat:write`, `im:history`, `im:read`, `im:write` → install to workspace → copy bot token (starts `xoxb-…`).
+4. Event Subscriptions → enable → subscribe to bot events: `message.im`.
+5. VSCode settings → `claudeEcho.slack.appToken` and `claudeEcho.slack.botToken` → paste both.
+6. In Slack, open your profile → ⋯ → **Copy member ID** (starts with `U…`).
+7. Run **Bind Claude Code sessions…** → pick Slack → paste your member ID.
+
+### WhatsApp
+
+1. Run **Bind Claude Code sessions…** → pick WhatsApp → enter your number in E.164.
+2. A verification code shows in the notification. Note it.
+3. Click **Start bridge**. A QR panel appears.
+4. WhatsApp on your phone → Settings → Linked Devices → Link a Device → scan.
+5. Once linked, send the verification code from your phone via WhatsApp to your own number.
+6. Reply "Number verified ✓" confirms the bridge is live.
 
 ## Requirements
 
 - VSCode `1.85` or newer
 - [Claude Code](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code) extension
-- Claude Code CLI installed and on your `PATH` (or path configured in settings)
+- Claude Code CLI on PATH (`claude --version` should work)
 
 ## About Codenzia
 
-[Codenzia](https://codenzia.com) builds developer tooling and SaaS infrastructure on the Laravel + Filament stack. Companion extension: [Claude Tabs](https://github.com/Codenzia/claude-tabs-vscode) — snapshot and restore your Claude Code tabs across VSCode restarts.
+[Codenzia](https://codenzia.com) builds developer tooling and SaaS infrastructure on the Laravel + Filament stack. Companion extension: [Claude Tabs](https://github.com/Codenzia/claude-tabs-vscode) — snapshot and restore Claude Code tab sets across VSCode restarts.
 
 ## License
 
