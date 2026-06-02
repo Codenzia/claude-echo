@@ -2,7 +2,7 @@
   "name": "claude-whatsapp-bridge",
   "displayName": "Claude WhatsApp Bridge",
   "description": "Chat with your Claude Code agent from WhatsApp. Binds a Claude Code session to your WhatsApp number via open-wa.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "codenzia",
   "author": {
     "name": "Codenzia",
@@ -46,13 +46,28 @@
   "contributes": {
     "commands": [
       {
-        "command": "claudeWhatsApp.bindSession",
-        "title": "Claude WhatsApp: Bind a Claude Code session…",
+        "command": "claudeWhatsApp.bindSessions",
+        "title": "Claude WhatsApp: Bind Claude Code sessions…",
         "icon": "$(link)"
       },
       {
+        "command": "claudeWhatsApp.bindSession",
+        "title": "Claude WhatsApp: Bind Claude Code sessions… (alias)",
+        "icon": "$(link)"
+      },
+      {
+        "command": "claudeWhatsApp.unbindOne",
+        "title": "Claude WhatsApp: Unbind a single session…",
+        "icon": "$(remove)"
+      },
+      {
+        "command": "claudeWhatsApp.setActive",
+        "title": "Claude WhatsApp: Change active session…",
+        "icon": "$(star-empty)"
+      },
+      {
         "command": "claudeWhatsApp.unbind",
-        "title": "Claude WhatsApp: Unbind current session",
+        "title": "Claude WhatsApp: Remove workspace binding",
         "icon": "$(unlink)"
       },
       {
@@ -118,13 +133,13 @@
     "viewsWelcome": [
       {
         "view": "claudeWhatsApp.bridge",
-        "contents": "No Claude Code session bound yet.\n\nBind a session to your WhatsApp number to chat with your agent from anywhere.\n\n[Bind a Claude Code session](command:claudeWhatsApp.bindSession)\n\nDeveloped by [Codenzia](https://codenzia.com)."
+        "contents": "No Claude Code sessions bound yet.\n\nBind one or more sessions to your WhatsApp number, then chat with your agent from anywhere. Tag-based routing lets you switch between sessions from your phone.\n\n[Bind Claude Code sessions…](command:claudeWhatsApp.bindSessions)\n\nDeveloped by [Codenzia](https://codenzia.com)."
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "claudeWhatsApp.bindSession",
+          "command": "claudeWhatsApp.bindSessions",
           "when": "view == claudeWhatsApp.bridge",
           "group": "navigation@1"
         },

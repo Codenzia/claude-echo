@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.3.0] — 2026-06-02
+
+### Added — multi-session routing
+- **Bulk binding.** "Bind Claude Code sessions…" now opens a multi-select picker. Tick every Claude tab you want available; each becomes a tagged session in the workspace.
+- **Tags** auto-derived from each session's first user message (e.g. `serveeta`, `bmp`, `dropflow`). Uniqueness enforced per workspace.
+- **Active session** concept. One bound session is marked active at any time. Untagged WhatsApp messages route there. Reply prefixed with `[tag]` when more than one session is bound.
+- **WhatsApp commands** parsed at the bridge:
+  - `/list` — show all bound sessions
+  - `/use <tag>` (or `/switch`) — change active
+  - `/where` — current active
+  - `/help` — list commands
+  - `#<tag> <text>` — one-off override that routes a single message without changing active
+- **New VSCode commands**: `Change active session…`, `Unbind a single session…`, `Remove workspace binding`.
+- **Tree view** shows a new "Sessions" group with star marker on the active one. Clicking a session sets it active.
+
+### Changed
+- Verification is now **per-WhatsApp-number**, not per-session. Verify once, and all sessions bound to that number flow.
+- `Unbind` now removes the whole workspace binding (all sessions + verified number). Use `Unbind a single session…` to drop just one.
+
+### Migration
+- Existing `v0.2.x` bindings are migrated automatically on first load — single binding becomes a workspace with one tagged session, marked active.
+
 ## [0.2.1] — 2026-06-02
 
 ### Added

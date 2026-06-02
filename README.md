@@ -27,21 +27,39 @@ The IDE tab for the bound session shows the new exchanges next time it's opened 
 ## Quick start
 
 1. **Install** this extension and the [Claude Code](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code) extension.
-2. Open at least one Claude Code conversation in the workspace you want to bind.
-3. Click the **WhatsApp bubble icon** in the Activity Bar → **Bind a Claude Code session**.
-4. Pick the session. Enter your phone number in E.164 (e.g. `+15551234567`). VSCode will display a **verification code** like `XK7-9PQ`.
-5. Click **Start bridge**. A QR-code panel opens — scan it from **WhatsApp → Settings → Linked Devices → Link a Device**.
-6. **Send the verification code** from your phone via WhatsApp to your own number. The bridge replies "Number verified ✓" and is now active.
-7. From this point on, any message you send to your own number is forwarded to your Claude agent and the reply comes back.
+2. Open one or more Claude Code conversations in the workspace you want to bridge.
+3. Click the **WhatsApp bubble icon** in the Activity Bar → **Bind Claude Code sessions…**
+4. **Tick all the sessions** you want available via WhatsApp (space toggles, Enter confirms). Each picked session gets a short auto-derived tag like `serveeta`, `bmp`, `dropflow`.
+5. Enter your phone number in E.164 (e.g. `+15551234567`). VSCode displays a **verification code** like `XK7-9PQ`.
+6. Click **Start bridge**. A QR-code panel opens — scan it from **WhatsApp → Settings → Linked Devices → Link a Device**.
+7. **Send the verification code** from your phone via WhatsApp to your own number. The bridge replies "Number verified ✓" and lists your bound sessions.
+8. Chat away. By default, every message goes to whichever session is currently *active* — see the routing commands below to switch.
 
-After the first scan, the auth is cached under the extension's global storage, so subsequent restarts skip the QR step. After verification, the bridge remembers the binding is trusted; you only need to re-verify if you re-bind or rotate the code.
+After the first scan, the auth is cached under the extension's global storage, so subsequent restarts skip the QR step. After verification, the bridge remembers the workspace is trusted across all bound sessions.
+
+## Routing across many sessions
+
+The bridge has one *active* session per workspace. Messages without a tag are routed there. Switch active or one-off route via these WhatsApp commands:
+
+| You type | What happens |
+| --- | --- |
+| `/list` | Lists all bound sessions, marks the active one with `*` |
+| `/use serveeta` (or `/switch serveeta`) | Sets `serveeta` as the active session |
+| `/where` | Replies with the current active session |
+| `#bmp how's the deploy?` | One-off — routes this single message to `bmp` but leaves the active pointer unchanged |
+| `/help` | Shows the command reference on WhatsApp |
+| anything else | Forwarded to the currently active session |
+
+When the workspace has more than one bound session, replies are prefixed with `[tag]` so you always know which session answered.
 
 ## Commands
 
 | Command | Description |
 | --- | --- |
-| `Claude WhatsApp: Bind a Claude Code session…` | Pick a running session and tie it to your WhatsApp number |
-| `Claude WhatsApp: Unbind current session` | Stop and remove the binding |
+| `Claude WhatsApp: Bind Claude Code sessions…` | Multi-pick sessions and tie them to your WhatsApp number |
+| `Claude WhatsApp: Change active session…` | Pick a different session to be the default route |
+| `Claude WhatsApp: Unbind a single session…` | Drop one session from the workspace binding |
+| `Claude WhatsApp: Remove workspace binding` | Clear all bindings + the verified number (full reset) |
 | `Claude WhatsApp: Start bridge` / `Stop bridge` | Manual control |
 | `Claude WhatsApp: Show WhatsApp QR code` | Reveal the QR panel for first-time or re-auth |
 | `Claude WhatsApp: Send test message` | Sends a `[bridge] test` message to verify outbound path |

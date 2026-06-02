@@ -1,9 +1,9 @@
 import * as vscode from 'vscode';
-import { Binding, BindingStore } from './bindingStore';
+import { BindingStore, SessionBinding, WorkspaceBinding } from './bindingStore';
 import { ActivityEntry, ActivityLog } from './activityLog';
 import { WaStatus } from './whatsappClient';
 
-export type TreeNode = HeaderNode | InfoNode | ActionNode | ActivityNode;
+export type TreeNode = HeaderNode | InfoNode | ActionNode | ActivityNode | SessionNode;
 
 export class HeaderNode extends vscode.TreeItem {
   readonly kind = 'header' as const;
@@ -27,12 +27,27 @@ export class InfoNode extends vscode.TreeItem {
 
 export class ActionNode extends vscode.TreeItem {
   readonly kind = 'action' as const;
-  constructor(label: string, commandId: string, icon: string, tooltip?: string) {
+  constructor(label: string, commandId: string, icon: string, tooltip?: string, args?: unknown[]) {
     super(label, vscode.TreeItemCollapsibleState.None);
     this.iconPath = new vscode.ThemeIcon(icon);
     this.tooltip = tooltip ?? label;
     this.contextValue = 'action';
-    this.command = { command: commandId, title: label };
+    this.command = { command: commandId, title: label, arguments: args };
+  }
+}
+
+export class SessionNode extends vscode.TreeItem {
+  readonly kind = 'session' as const;
+  constructor(readonly session: SessionBinding, readonly isActive: boolean) {
+    super(`${isActive ? '★ ' : ''}${session.tag}`, vscode.TreeItemCollapsibleState.None);
+    this.description = session.sessionTitle.length > 60 ? session.sessionTitle.slice(0, 57) + '…' : session.sessionTitle;
+    this.tooltip = `${session.tag}\n${session.sessionTitle}\nsessionId: ${session.sessionId}${isActive ? '\n\n(active — messages without a #tag go here)' : ''}`;
+    this.iconPath = new vscode.ThemeIcon(isActive ? 'star-full' : 'comment-discussion');
+    this.contextValue = 'session';
+    this.command = {
+      command: 'claudeWhatsApp.setActive',
+      title: 'Set as active'
+    };
   }
 }
 
@@ -71,51 +86,58 @@ export class BindingProvider implements vscode.TreeDataProvider<TreeNode> {
   getTreeItem(element: TreeNode): vscode.TreeItem { return element; }
 
   getChildren(element?: TreeNode): TreeNode[] {
-    if (element && (element.kind === 'header')) {
-      return element.children;
-    }
+    if (element && element.kind === 'header') { return element.children; }
     if (element) { return []; }
     if (!this.workspaceFolder) { return []; }
-    const binding = this.store.get(this.workspaceFolder);
-    if (!binding) {
+
+    const ws = this.store.get(this.workspaceFolder);
+    if (!ws) {
       return [
-        new ActionNode('Bind a Claude Code session…', 'claudeWhatsApp.bindSession', 'link',
-          'Pick a running Claude Code session in this workspace and tie it to your WhatsApp number')
+        new ActionNode('Bind Claude Code sessions…', 'claudeWhatsApp.bindSessions', 'link',
+          'Pick one or more running Claude Code tabs and tie them to your WhatsApp number')
       ];
     }
 
     const status = this.getStatus();
     const statusLabel = describeStatus(status);
 
-    const verifiedLabel = binding.verified
-      ? 'Verified ✓'
-      : binding.pendingChallenge
-        ? `Pending — send "${formatPending(binding.pendingChallenge.code)}" from your phone`
+    const verifiedLabel = ws.verified
+      ? `Verified ✓ (${ws.allowedNumber})`
+      : ws.pendingChallenge
+        ? `Pending — send "${formatPending(ws.pendingChallenge.code)}" from your phone`
         : 'Not verified — regenerate a code';
 
-    const bindingChildren: TreeNode[] = [
-      new InfoNode('Session', binding.sessionTitle, 'comment-discussion', `sessionId: ${binding.sessionId}`),
-      new InfoNode('Allowed number', binding.allowedNumber, 'device-mobile'),
-      new InfoNode('Verification', verifiedLabel, binding.verified ? 'pass' : 'warning'),
+    const overviewChildren: TreeNode[] = [
+      new InfoNode('Allowed number', ws.allowedNumber, 'device-mobile'),
+      new InfoNode('Verification', verifiedLabel, ws.verified ? 'pass' : 'warning'),
       new InfoNode('Status', statusLabel, statusIcon(status)),
       new ActionNode(status === 'ready' ? 'Stop bridge' : 'Start bridge',
         status === 'ready' ? 'claudeWhatsApp.stop' : 'claudeWhatsApp.start',
         status === 'ready' ? 'debug-stop' : 'play')
     ];
 
-    if (!binding.verified) {
-      bindingChildren.push(
-        new ActionNode(binding.pendingChallenge ? 'Show verification code' : 'Generate verification code',
-          binding.pendingChallenge ? 'claudeWhatsApp.showChallenge' : 'claudeWhatsApp.regenerateChallenge',
+    if (!ws.verified) {
+      overviewChildren.push(
+        new ActionNode(ws.pendingChallenge ? 'Show verification code' : 'Generate verification code',
+          ws.pendingChallenge ? 'claudeWhatsApp.showChallenge' : 'claudeWhatsApp.regenerateChallenge',
           'key')
       );
     }
 
-    bindingChildren.push(
+    overviewChildren.push(
       new ActionNode('Show QR code', 'claudeWhatsApp.showQR', 'device-mobile'),
-      new ActionNode('Send test message', 'claudeWhatsApp.testSend', 'send'),
-      new ActionNode('Unbind session', 'claudeWhatsApp.unbind', 'unlink')
+      new ActionNode('Send test message', 'claudeWhatsApp.testSend', 'send')
     );
+
+    const sessionChildren: TreeNode[] = [
+      new ActionNode('Add more sessions…', 'claudeWhatsApp.bindSessions', 'add'),
+      new ActionNode('Change active session…', 'claudeWhatsApp.setActive', 'star-empty'),
+      new ActionNode('Unbind a session…', 'claudeWhatsApp.unbindOne', 'unlink'),
+      ...ws.sessions.map((s) => new SessionNode(s, s.sessionId === ws.activeSessionId))
+    ];
+    if (ws.sessions.length === 0) {
+      sessionChildren.push(new InfoNode('(no sessions bound yet)', undefined, 'circle-slash'));
+    }
 
     const entries = this.activity.list();
     const activityChildren: TreeNode[] = entries.length === 0
@@ -123,10 +145,15 @@ export class BindingProvider implements vscode.TreeDataProvider<TreeNode> {
       : entries.map((e) => new ActivityNode(e));
 
     return [
-      new HeaderNode('Binding', 'link', bindingChildren),
+      new HeaderNode('Bridge', 'link', overviewChildren),
+      new HeaderNode(`Sessions (${ws.sessions.length})`, 'list-tree', sessionChildren),
       new HeaderNode('Activity', 'pulse', activityChildren)
     ];
   }
+}
+
+function formatPending(code: string): string {
+  return code.length > 3 ? `${code.slice(0, 3)}-${code.slice(3)}` : code;
 }
 
 function describeStatus(s: WaStatus): string {
@@ -141,10 +168,6 @@ function describeStatus(s: WaStatus): string {
   }
 }
 
-function formatPending(code: string): string {
-  return code.length > 3 ? `${code.slice(0, 3)}-${code.slice(3)}` : code;
-}
-
 function statusIcon(s: WaStatus): string {
   switch (s) {
     case 'ready': return 'check';
@@ -155,9 +178,4 @@ function statusIcon(s: WaStatus): string {
     case 'error': return 'error';
     case 'idle': return 'circle-slash';
   }
-}
-
-export function getBinding(store: BindingStore, workspaceFolder: string | undefined): Binding | undefined {
-  if (!workspaceFolder) { return undefined; }
-  return store.get(workspaceFolder);
 }
