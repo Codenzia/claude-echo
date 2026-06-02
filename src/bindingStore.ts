@@ -1,11 +1,19 @@
 import * as vscode from 'vscode';
 
+export interface PendingChallenge {
+  code: string;
+  issuedAt: number;
+  expiresAt: number;
+}
+
 export interface Binding {
   sessionId: string;
   sessionTitle: string;
   workspaceFolder: string;
   allowedNumber: string;
   createdAt: number;
+  verified: boolean;
+  pendingChallenge?: PendingChallenge;
 }
 
 interface StoreShape {

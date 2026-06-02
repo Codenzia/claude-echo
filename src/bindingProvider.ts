@@ -87,17 +87,35 @@ export class BindingProvider implements vscode.TreeDataProvider<TreeNode> {
     const status = this.getStatus();
     const statusLabel = describeStatus(status);
 
+    const verifiedLabel = binding.verified
+      ? 'Verified ✓'
+      : binding.pendingChallenge
+        ? `Pending — send "${formatPending(binding.pendingChallenge.code)}" from your phone`
+        : 'Not verified — regenerate a code';
+
     const bindingChildren: TreeNode[] = [
       new InfoNode('Session', binding.sessionTitle, 'comment-discussion', `sessionId: ${binding.sessionId}`),
       new InfoNode('Allowed number', binding.allowedNumber, 'device-mobile'),
+      new InfoNode('Verification', verifiedLabel, binding.verified ? 'pass' : 'warning'),
       new InfoNode('Status', statusLabel, statusIcon(status)),
       new ActionNode(status === 'ready' ? 'Stop bridge' : 'Start bridge',
         status === 'ready' ? 'claudeWhatsApp.stop' : 'claudeWhatsApp.start',
-        status === 'ready' ? 'debug-stop' : 'play'),
+        status === 'ready' ? 'debug-stop' : 'play')
+    ];
+
+    if (!binding.verified) {
+      bindingChildren.push(
+        new ActionNode(binding.pendingChallenge ? 'Show verification code' : 'Generate verification code',
+          binding.pendingChallenge ? 'claudeWhatsApp.showChallenge' : 'claudeWhatsApp.regenerateChallenge',
+          'key')
+      );
+    }
+
+    bindingChildren.push(
       new ActionNode('Show QR code', 'claudeWhatsApp.showQR', 'device-mobile'),
       new ActionNode('Send test message', 'claudeWhatsApp.testSend', 'send'),
       new ActionNode('Unbind session', 'claudeWhatsApp.unbind', 'unlink')
-    ];
+    );
 
     const entries = this.activity.list();
     const activityChildren: TreeNode[] = entries.length === 0
@@ -121,6 +139,10 @@ function describeStatus(s: WaStatus): string {
     case 'stopping': return 'Stopping…';
     case 'error': return 'Error (see logs)';
   }
+}
+
+function formatPending(code: string): string {
+  return code.length > 3 ? `${code.slice(0, 3)}-${code.slice(3)}` : code;
 }
 
 function statusIcon(s: WaStatus): string {

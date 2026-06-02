@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.1] — 2026-06-02
+
+### Added
+- **Verification challenge.** First-time bindings now issue a 6-character code (e.g. `XK7-9PQ`) that must be echoed via WhatsApp from the configured number before any messages are forwarded to Claude. Catches typos in `allowedNumber` and confirms phone possession.
+- New commands `Show verification code` and `Regenerate verification code`.
+- Rate limiter with `maxMessagesPerHour` (default 60) and `maxMessagesPerDay` (default 500) settings to cap billing exposure.
+- `maxInboundBytes` setting (default 4 KB) truncates oversized inbound messages.
+- `verboseLogging` setting; when off (default), Activity tree and Output Channel show only an 8-char prefix of message bodies to avoid leaking chat content if logs are shared.
+
+### Changed
+- `autoStart` default flipped from `true` to `false`. Even when on, the bridge only auto-starts for *verified* bindings.
+- `claudeCliPath` and `allowedNumber` settings are now `machine`-scoped — a workspace's `.vscode/settings.json` cannot override them.
+- Claude CLI now invoked with `--` before the prompt, preventing a message body starting with `--` from being parsed as a CLI flag.
+
 ## [0.2.0] — 2026-06-02
 
 ### Changed

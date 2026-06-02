@@ -2,7 +2,7 @@
   "name": "claude-whatsapp-bridge",
   "displayName": "Claude WhatsApp Bridge",
   "description": "Chat with your Claude Code agent from WhatsApp. Binds a Claude Code session to your WhatsApp number via open-wa.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "publisher": "codenzia",
   "author": {
     "name": "Codenzia",
@@ -84,6 +84,16 @@
         "command": "claudeWhatsApp.showLogs",
         "title": "Claude WhatsApp: Show logs",
         "icon": "$(output)"
+      },
+      {
+        "command": "claudeWhatsApp.regenerateChallenge",
+        "title": "Claude WhatsApp: Regenerate verification code",
+        "icon": "$(key)"
+      },
+      {
+        "command": "claudeWhatsApp.showChallenge",
+        "title": "Claude WhatsApp: Show verification code",
+        "icon": "$(eye)"
       }
     ],
     "viewsContainers": {
@@ -146,12 +156,14 @@
         "claudeWhatsApp.allowedNumber": {
           "type": "string",
           "default": "",
-          "description": "Single allowed WhatsApp number in E.164 format (e.g. +15551234567). Messages from any other number are ignored. REQUIRED."
+          "scope": "machine",
+          "description": "Single allowed WhatsApp number in E.164 format (e.g. +15551234567). Messages from any other number are ignored. REQUIRED. Locked to user/machine settings — workspace folders cannot override."
         },
         "claudeWhatsApp.claudeCliPath": {
           "type": "string",
           "default": "claude",
-          "description": "Path to the Claude Code CLI binary. Default assumes it is on PATH."
+          "scope": "machine",
+          "description": "Path to the Claude Code CLI binary. Default assumes it is on PATH. Locked to user/machine settings to prevent a malicious workspace's .vscode/settings.json from redirecting the bridge to a different binary."
         },
         "claudeWhatsApp.responseTimeoutMs": {
           "type": "number",
@@ -161,8 +173,31 @@
         },
         "claudeWhatsApp.autoStart": {
           "type": "boolean",
-          "default": true,
-          "description": "Automatically start the bridge on workspace activation when a binding exists."
+          "default": false,
+          "description": "Automatically start the bridge on workspace activation when a verified binding exists. OFF by default for safety — turn on only after you've confirmed your binding works."
+        },
+        "claudeWhatsApp.maxMessagesPerHour": {
+          "type": "number",
+          "default": 60,
+          "minimum": 0,
+          "description": "Drop inbound messages once this many have been processed in the last 60 minutes. 0 disables the limit. Defends against billing runaway if WhatsApp gets compromised."
+        },
+        "claudeWhatsApp.maxMessagesPerDay": {
+          "type": "number",
+          "default": 500,
+          "minimum": 0,
+          "description": "Same as above, per rolling 24 hours."
+        },
+        "claudeWhatsApp.maxInboundBytes": {
+          "type": "number",
+          "default": 4096,
+          "minimum": 256,
+          "description": "Truncate inbound WhatsApp message bodies to this many bytes before forwarding to Claude. Caps per-message Claude cost."
+        },
+        "claudeWhatsApp.verboseLogging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Log full WhatsApp message bodies to the Output Channel and Activity tree. OFF by default — only an 8-char prefix is shown to avoid leaking private chat content if you share logs."
         }
       }
     }

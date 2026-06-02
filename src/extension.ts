@@ -8,6 +8,9 @@ import { runClaudeCli } from './claudeBridge';
 import { showQrPanel, updateQrPanel } from './qrPanel';
 import { BindingProvider } from './bindingProvider';
 import { getLogger, logError, logInfo, logWarn } from './logger';
+import { RateLimiter } from './rateLimiter';
+import { redactBody } from './redact';
+import { checkChallenge, formatChallenge, generateChallenge } from './verification';
 
 const CONFIG_NS = 'claudeWhatsApp';
 const CTX_RUNNING = 'claudeWhatsApp:running';
@@ -36,6 +39,23 @@ export async function activate(context: vscode.ExtensionContext) {
   const activity = new ActivityLog();
   const wa = new WhatsAppClient();
   const root = workspaceRoot();
+
+  let limiter = new RateLimiter(
+    cfg().get<number>('maxMessagesPerHour', 60),
+    cfg().get<number>('maxMessagesPerDay', 500)
+  );
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('claudeWhatsApp.maxMessagesPerHour') ||
+          e.affectsConfiguration('claudeWhatsApp.maxMessagesPerDay')) {
+        limiter = new RateLimiter(
+          cfg().get<number>('maxMessagesPerHour', 60),
+          cfg().get<number>('maxMessagesPerDay', 500)
+        );
+        logInfo('Rate limits reconfigured.');
+      }
+    })
+  );
 
   const provider = new BindingProvider(store, activity, root, () => wa.getStatus());
   const treeView = vscode.window.createTreeView('claudeWhatsApp.bridge', {
@@ -79,17 +99,75 @@ export async function activate(context: vscode.ExtensionContext) {
       return;
     }
 
-    activity.push('inbound', `> ${msg.body.slice(0, 80)}`);
-    logInfo(`Inbound from ${msg.fromNumber}: ${msg.body.slice(0, 120)}`);
+    const verbose = cfg().get<boolean>('verboseLogging', false);
+
+    // Verification gate: until verified, the only message we accept is the challenge code.
+    if (!binding.verified) {
+      const outcome = checkChallenge(binding.pendingChallenge, msg.body);
+      if (outcome.matched) {
+        const verified: Binding = { ...binding, verified: true, pendingChallenge: undefined };
+        await store.set(verified);
+        activity.push('system', 'Number verified ✓');
+        logInfo('Verification challenge matched. Binding is now verified.');
+        try {
+          await wa.sendText(binding.allowedNumber,
+            `[Claude WhatsApp Bridge]\nNumber verified ✓\nYou can now chat with Claude. Every message you send will be billed against your Claude API usage.`);
+        } catch (err) {
+          logError('Failed to send verification confirmation', err);
+        }
+        return;
+      }
+      if (outcome.expired) {
+        activity.push('error', 'Verification code expired');
+        try {
+          await wa.sendText(binding.allowedNumber,
+            '[Claude WhatsApp Bridge] The verification code expired. Open VSCode → "Claude WhatsApp: Regenerate verification code" to get a new one.');
+        } catch { /* ignore */ }
+        return;
+      }
+      // Unmatched message while pending — tell user what we expect.
+      const codeHint = binding.pendingChallenge
+        ? `Send the verification code shown in VSCode (format: ${formatChallenge(binding.pendingChallenge.code)}).`
+        : 'Run "Claude WhatsApp: Regenerate verification code" in VSCode to issue one.';
+      try {
+        await wa.sendText(binding.allowedNumber, `[Claude WhatsApp Bridge] Number not yet verified. ${codeHint}`);
+      } catch { /* ignore */ }
+      activity.push('error', 'Dropped — awaiting verification');
+      return;
+    }
+
+    // Rate limit check before doing anything expensive.
+    const decision = limiter.check();
+    if (!decision.ok) {
+      logWarn(`Rate limited: ${decision.reason}`);
+      activity.push('error', `Rate limited (${limiter.stats().lastHour}/h, ${limiter.stats().lastDay}/d)`);
+      try {
+        await wa.sendText(binding.allowedNumber, `[bridge] ${decision.reason}`);
+      } catch { /* ignore */ }
+      return;
+    }
+
+    // Truncate inbound body to cap per-message Claude cost.
+    const maxBytes = cfg().get<number>('maxInboundBytes', 4096);
+    let prompt = msg.body;
+    let truncated = false;
+    if (maxBytes > 0 && Buffer.byteLength(prompt, 'utf8') > maxBytes) {
+      prompt = Buffer.from(prompt, 'utf8').subarray(0, maxBytes).toString('utf8');
+      truncated = true;
+    }
+
+    activity.push('inbound', `> ${redactBody(prompt, verbose)}${truncated ? ' [truncated]' : ''}`);
+    logInfo(`Inbound from ${msg.fromNumber}: ${redactBody(prompt, verbose)}${truncated ? ' (truncated)' : ''}`);
 
     const timeoutMs = cfg().get<number>('responseTimeoutMs', 120_000);
     const cliPath = cfg().get<string>('claudeCliPath', 'claude') || 'claude';
 
+    limiter.record();
     const result = await runClaudeCli({
       cliPath,
       sessionId: binding.sessionId,
       cwd: binding.workspaceFolder,
-      prompt: msg.body,
+      prompt,
       timeoutMs
     });
 
@@ -106,8 +184,8 @@ export async function activate(context: vscode.ExtensionContext) {
     const reply = result.text.trim() || '(empty response)';
     try {
       await wa.sendText(binding.allowedNumber, reply);
-      activity.push('outbound', `< ${reply.slice(0, 80)}`);
-      logInfo(`Outbound reply (${result.durationMs} ms): ${reply.slice(0, 120)}`);
+      activity.push('outbound', `< ${redactBody(reply, verbose)}`);
+      logInfo(`Outbound reply (${result.durationMs} ms): ${redactBody(reply, verbose)}`);
     } catch (err) {
       logError('Failed to send Claude reply to WhatsApp', err);
       activity.push('error', `Send failed: ${err instanceof Error ? err.message : err}`);
@@ -191,23 +269,34 @@ export async function activate(context: vscode.ExtensionContext) {
 
       await cfg().update('allowedNumber', allowedNumber, vscode.ConfigurationTarget.Global);
 
+      const challenge = generateChallenge();
       const binding: Binding = {
         sessionId: pick.session.sessionId,
         sessionTitle: pick.session.title,
         workspaceFolder: root,
         allowedNumber,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        verified: false,
+        pendingChallenge: challenge
       };
       await store.set(binding);
-      activity.push('system', `Bound session "${pick.session.title.slice(0, 40)}" to ${allowedNumber}`);
+      activity.push('system', `Bound to ${allowedNumber} — verification pending (code ${formatChallenge(challenge.code)})`);
 
       const startNow = await vscode.window.showInformationMessage(
-        'Session bound. Start the WhatsApp bridge now?',
+        `Session bound. To verify the number, after the bridge starts send this code from your phone: ${formatChallenge(challenge.code)}`,
+        { modal: false },
         'Start bridge',
+        'Copy code',
         'Later'
       );
-      if (startNow === 'Start bridge') {
+      if (startNow === 'Copy code') {
+        await vscode.env.clipboard.writeText(challenge.code);
+        vscode.window.showInformationMessage(`Verification code copied: ${formatChallenge(challenge.code)}. Click "Claude WhatsApp: Start bridge" when ready.`);
+      } else if (startNow === 'Start bridge') {
         await startBridge({ interactive: true });
+        vscode.window.showInformationMessage(
+          `Bridge starting. After you scan the QR with WhatsApp, send the code ${formatChallenge(challenge.code)} from your phone to verify the binding.`
+        );
       }
     }),
 
@@ -259,14 +348,68 @@ export async function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand('claudeWhatsApp.showLogs', () => {
       getLogger().show();
+    }),
+
+    vscode.commands.registerCommand('claudeWhatsApp.regenerateChallenge', async () => {
+      if (!root) { return; }
+      const binding = store.get(root);
+      if (!binding) {
+        vscode.window.showWarningMessage('No binding yet. Run "Bind a Claude Code session" first.');
+        return;
+      }
+      const challenge = generateChallenge();
+      await store.set({ ...binding, verified: false, pendingChallenge: challenge });
+      activity.push('system', `New verification code issued: ${formatChallenge(challenge.code)}`);
+      const formatted = formatChallenge(challenge.code);
+      const action = await vscode.window.showInformationMessage(
+        `New verification code: ${formatted}. Send it from ${binding.allowedNumber} via WhatsApp.`,
+        'Copy code'
+      );
+      if (action === 'Copy code') {
+        await vscode.env.clipboard.writeText(challenge.code);
+      }
+    }),
+
+    vscode.commands.registerCommand('claudeWhatsApp.showChallenge', async () => {
+      if (!root) { return; }
+      const binding = store.get(root);
+      if (!binding) {
+        vscode.window.showInformationMessage('No binding yet.');
+        return;
+      }
+      if (binding.verified) {
+        vscode.window.showInformationMessage(`Number ${binding.allowedNumber} is already verified.`);
+        return;
+      }
+      if (!binding.pendingChallenge) {
+        vscode.window.showWarningMessage('No pending verification code. Run "Regenerate verification code".');
+        return;
+      }
+      const formatted = formatChallenge(binding.pendingChallenge.code);
+      const expiresIn = Math.max(0, Math.round((binding.pendingChallenge.expiresAt - Date.now()) / 60000));
+      const action = await vscode.window.showInformationMessage(
+        `Verification code: ${formatted} (expires in ~${expiresIn} min). Send it from ${binding.allowedNumber} via WhatsApp.`,
+        'Copy code',
+        'Regenerate'
+      );
+      if (action === 'Copy code') {
+        await vscode.env.clipboard.writeText(binding.pendingChallenge.code);
+      } else if (action === 'Regenerate') {
+        await vscode.commands.executeCommand('claudeWhatsApp.regenerateChallenge');
+      }
     })
   );
 
   context.subscriptions.push({ dispose: () => stopBridge() });
 
-  if (cfg().get<boolean>('autoStart', true) && root && store.get(root)) {
-    logInfo('autoStart=true and binding present; starting bridge in background.');
-    startBridge({ interactive: false }).catch((err) => logError('autoStart failed', err));
+  const autoStartBinding = root ? store.get(root) : undefined;
+  if (cfg().get<boolean>('autoStart', false) && autoStartBinding) {
+    if (autoStartBinding.verified) {
+      logInfo('autoStart enabled and binding is verified; starting bridge in background.');
+      startBridge({ interactive: false }).catch((err) => logError('autoStart failed', err));
+    } else {
+      logInfo('autoStart enabled but binding is not yet verified; skipping auto-start.');
+    }
   }
 }
 

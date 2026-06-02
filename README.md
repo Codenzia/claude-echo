@@ -29,11 +29,12 @@ The IDE tab for the bound session shows the new exchanges next time it's opened 
 1. **Install** this extension and the [Claude Code](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code) extension.
 2. Open at least one Claude Code conversation in the workspace you want to bind.
 3. Click the **WhatsApp bubble icon** in the Activity Bar → **Bind a Claude Code session**.
-4. Pick the session. Enter your phone number in E.164 (e.g. `+15551234567`).
-5. Confirm "Start bridge". A QR-code panel opens — scan it from **WhatsApp → Settings → Linked Devices → Link a Device**.
-6. Send a WhatsApp message to your own number. Within a few seconds you'll get Claude's reply.
+4. Pick the session. Enter your phone number in E.164 (e.g. `+15551234567`). VSCode will display a **verification code** like `XK7-9PQ`.
+5. Click **Start bridge**. A QR-code panel opens — scan it from **WhatsApp → Settings → Linked Devices → Link a Device**.
+6. **Send the verification code** from your phone via WhatsApp to your own number. The bridge replies "Number verified ✓" and is now active.
+7. From this point on, any message you send to your own number is forwarded to your Claude agent and the reply comes back.
 
-After the first scan, the auth is cached under the extension's global storage, so subsequent restarts skip the QR step.
+After the first scan, the auth is cached under the extension's global storage, so subsequent restarts skip the QR step. After verification, the bridge remembers the binding is trusted; you only need to re-verify if you re-bind or rotate the code.
 
 ## Commands
 
@@ -45,6 +46,8 @@ After the first scan, the auth is cached under the extension's global storage, s
 | `Claude WhatsApp: Show WhatsApp QR code` | Reveal the QR panel for first-time or re-auth |
 | `Claude WhatsApp: Send test message` | Sends a `[bridge] test` message to verify outbound path |
 | `Claude WhatsApp: Show logs` | Open the diagnostic Output Channel |
+| `Claude WhatsApp: Show verification code` | Reveal the current pending verification code |
+| `Claude WhatsApp: Regenerate verification code` | Issue a fresh code (e.g. if the previous one expired) |
 
 ## Settings
 
@@ -53,13 +56,51 @@ After the first scan, the auth is cached under the extension's global storage, s
 | `claudeWhatsApp.allowedNumber` | `""` | Single E.164 phone number permitted to message Claude. Anything else is dropped. |
 | `claudeWhatsApp.claudeCliPath` | `"claude"` | Path to the Claude Code CLI binary. |
 | `claudeWhatsApp.responseTimeoutMs` | `120000` | Max time to wait for a Claude reply before sending a timeout error to WhatsApp. |
-| `claudeWhatsApp.autoStart` | `true` | Auto-start the bridge on activation when a binding exists. |
+| `claudeWhatsApp.autoStart` | `false` | Auto-start the bridge on activation when a **verified** binding exists. Off by default for safety. |
+| `claudeWhatsApp.maxMessagesPerHour` | `60` | Drop inbound messages above this rate. `0` disables. |
+| `claudeWhatsApp.maxMessagesPerDay` | `500` | Same, rolling 24-hour window. |
+| `claudeWhatsApp.maxInboundBytes` | `4096` | Truncate inbound message bodies to this many bytes to cap per-message Claude cost. |
+| `claudeWhatsApp.verboseLogging` | `false` | Log full message bodies. Off by default — logs and the activity tree only show an 8-char prefix to avoid leaking chat content if you share diagnostics. |
 
 ## Security
 
-Only the single phone number you configure in `claudeWhatsApp.allowedNumber` can drive your Claude agent through this bridge. Messages from any other sender are silently dropped and logged. **Treat that number like a credential** — anyone who can send WhatsApp messages from it has full access to your agent (and your wallet, since every message costs Claude API tokens).
+The bridge has several layers of defense, but you should understand each one.
 
-Group messages are always ignored.
+### Allowlist + verification challenge
+
+Only the single phone number configured in `claudeWhatsApp.allowedNumber` is accepted as a sender. On first bind, the extension issues a one-time alphanumeric **verification code** (e.g. `XK7-9PQ`) that you must echo back via WhatsApp from the configured number before any messages are forwarded to Claude. This catches the most common mistake — typing the wrong number — and confirms you actually control the phone.
+
+Codes expire 30 minutes after issue. Run **Claude WhatsApp: Regenerate verification code** to issue a fresh one.
+
+### Settings are user/machine-scoped
+
+`claudeWhatsApp.claudeCliPath` and `claudeWhatsApp.allowedNumber` cannot be overridden by a workspace's `.vscode/settings.json`. A malicious workspace can't redirect the bridge to a different CLI binary or change which phone number is allowed.
+
+### Rate limits
+
+Default 60 messages/hour and 500/day are enforced before any Claude CLI invocation. If a sender's account is compromised, the blast radius (and Claude billing exposure) is capped. Adjust via `claudeWhatsApp.maxMessagesPerHour` / `maxMessagesPerDay`.
+
+### Message body truncation
+
+Inbound bodies above `claudeWhatsApp.maxInboundBytes` (default 4 KB) are truncated before being sent to Claude.
+
+### Group messages
+
+Always dropped. Group chats can have ~256 members, any of whom could "speak as" the senders.
+
+### WhatsApp auth state on disk
+
+After scanning the QR, Baileys persists multi-device auth keys at:
+
+- Windows: `%APPDATA%\Code\User\globalStorage\codenzia.claude-whatsapp-bridge\wa-auth\`
+- macOS: `~/Library/Application Support/Code/User/globalStorage/codenzia.claude-whatsapp-bridge/wa-auth/`
+- Linux: `~/.config/Code/User/globalStorage/codenzia.claude-whatsapp-bridge/wa-auth/`
+
+Anyone who can read this directory can act as a linked WhatsApp device tied to your account. NTFS / POSIX user-only perms are the only protection. If you suspect leakage: open WhatsApp on your phone → Linked Devices → unlink the "Claude WhatsApp Bridge" entry; the extension will require a fresh QR scan.
+
+### The unfixable risk
+
+WhatsApp **is** the auth boundary. Anyone messaging from the allowed number drives your Claude agent with whatever tools that workspace's Claude Code has (Bash, Edit, Web, MCP). Treat that phone number / WhatsApp session like an SSH key.
 
 ## Risks you should know about
 

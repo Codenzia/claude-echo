@@ -26,10 +26,13 @@ interface ClaudeJsonResult {
 }
 
 export async function runClaudeCli(opts: RunOptions): Promise<RunResult> {
+  // `--` ensures any prompt content starting with `--` is treated as positional,
+  // not as a CLI flag (e.g. a WhatsApp message of "--help" would otherwise hijack the call).
   const args = [
     '--print',
     '--resume', opts.sessionId,
     '--output-format', 'json',
+    '--',
     opts.prompt
   ];
   const startedAt = Date.now();
