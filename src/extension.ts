@@ -3,7 +3,7 @@ import * as path from 'path';
 import { listSessionsForWorkspace } from './sessionScanner';
 import { Binding, BindingStore } from './bindingStore';
 import { ActivityLog } from './activityLog';
-import { OpenWaClient, OpenWaStatus, digitsOnly, IncomingMessage } from './openWaClient';
+import { WhatsAppClient, WaStatus, digitsOnly, IncomingMessage } from './whatsappClient';
 import { runClaudeCli } from './claudeBridge';
 import { showQrPanel, updateQrPanel } from './qrPanel';
 import { BindingProvider } from './bindingProvider';
@@ -34,7 +34,7 @@ function sanitizeE164(n: string): string {
 export async function activate(context: vscode.ExtensionContext) {
   const store = new BindingStore(context);
   const activity = new ActivityLog();
-  const wa = new OpenWaClient();
+  const wa = new WhatsAppClient();
   const root = workspaceRoot();
 
   const provider = new BindingProvider(store, activity, root, () => wa.getStatus());
@@ -46,7 +46,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   setRunningContext(wa.getStatus() === 'ready');
   context.subscriptions.push(
-    wa.onStatus((s: OpenWaStatus) => {
+    wa.onStatus((s: WaStatus) => {
       setRunningContext(s === 'ready');
       provider.refresh();
       updateQrPanel(undefined, describeStatus(s));
@@ -130,17 +130,13 @@ export async function activate(context: vscode.ExtensionContext) {
       logInfo(`Bridge already in status=${wa.getStatus()}; ignoring start.`);
       return;
     }
-    const sessionDataDir = path.join(context.globalStorageUri.fsPath, 'wa-session');
+    const authDir = path.join(context.globalStorageUri.fsPath, 'wa-auth');
     activity.push('system', 'Starting bridge…');
     if (opts.interactive) {
-      await showQrPanel(wa.getLatestQr(), 'Starting open-wa…');
+      await showQrPanel(wa.getLatestQr(), 'Starting WhatsApp client…');
     }
     try {
-      await wa.start({
-        sessionDataDir,
-        headless: cfg().get<boolean>('openWa.headless', true),
-        disableSpins: cfg().get<boolean>('openWa.disableSpins', true)
-      });
+      await wa.start({ authDir });
       activity.push('system', 'Bridge is ready.');
     } catch (err: any) {
       activity.push('error', `Start failed: ${err?.message ?? err}`);
@@ -278,12 +274,12 @@ export function deactivate(): void {
   // Best-effort: openWa client kill() is async and may not complete before host exits.
 }
 
-function describeStatus(s: OpenWaStatus): string {
+function describeStatus(s: WaStatus): string {
   switch (s) {
     case 'idle': return 'Not running.';
-    case 'starting': return 'Starting open-wa…';
+    case 'starting': return 'Starting WhatsApp client…';
     case 'qr': return 'Scan the QR with WhatsApp to authenticate.';
-    case 'authenticated': return 'Authenticated, finishing setup…';
+    case 'connecting': return 'Reconnecting…';
     case 'ready': return 'Bridge is listening for WhatsApp messages.';
     case 'stopping': return 'Stopping…';
     case 'error': return 'Error — see Output → "Claude WhatsApp".';

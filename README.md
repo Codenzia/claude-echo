@@ -10,7 +10,7 @@ Bind a Claude Code session running in your VSCode workspace to your WhatsApp num
 WhatsApp message (from your allowlisted number)
    │
    ▼
-open-wa client embedded in the extension
+Baileys WebSocket client embedded in the extension
    │
    ▼
 claude --print --resume <sessionId> --output-format json "<your text>"
@@ -19,7 +19,7 @@ claude --print --resume <sessionId> --output-format json "<your text>"
 Assistant response captured from CLI stdout
    │
    ▼
-open-wa.sendText(your number, reply)
+Baileys.sendText(your number, reply)
 ```
 
 The IDE tab for the bound session shows the new exchanges next time it's opened — there is no live-refresh of an open tab (the Claude Code extension does not expose an inject-message API at this time).
@@ -53,7 +53,6 @@ After the first scan, the auth is cached under the extension's global storage, s
 | `claudeWhatsApp.allowedNumber` | `""` | Single E.164 phone number permitted to message Claude. Anything else is dropped. |
 | `claudeWhatsApp.claudeCliPath` | `"claude"` | Path to the Claude Code CLI binary. |
 | `claudeWhatsApp.responseTimeoutMs` | `120000` | Max time to wait for a Claude reply before sending a timeout error to WhatsApp. |
-| `claudeWhatsApp.openWa.headless` | `true` | Run the open-wa Chromium controller headless. Disable to debug. |
 | `claudeWhatsApp.autoStart` | `true` | Auto-start the bridge on activation when a binding exists. |
 
 ## Security
@@ -64,9 +63,9 @@ Group messages are always ignored.
 
 ## Risks you should know about
 
-1. **WhatsApp Terms of Service** — `@open-wa/wa-automate` automates the WhatsApp Web client via Puppeteer. This is an unofficial integration and using it may violate WhatsApp's ToS. Your WhatsApp account could in theory be suspended. Use at your own risk.
+1. **WhatsApp Terms of Service** — [Baileys](https://github.com/WhiskeySockets/Baileys) speaks the WhatsApp multi-device WebSocket protocol directly (no browser automation). Like all unofficial WhatsApp clients, using it may violate WhatsApp's ToS, and your account could in theory be suspended. Use at your own risk.
 2. **Cost** — every inbound message kicks off one Claude API turn. If a malicious party gets hold of your phone number / SIM, the bill is yours.
-3. **Footprint** — `@open-wa/wa-automate` downloads Chromium (~150 MB) on first run.
+3. **Footprint** — small. Baileys is a pure-WebSocket library with no Chromium dependency (~5 MB extension install vs. ~150 MB for Puppeteer-based alternatives).
 4. **No real-time IDE display** — the IDE tab for the bound session does not auto-refresh when WhatsApp messages arrive. Close and reopen the tab to see the latest transcript.
 5. **Concurrency** — don't actively type into the IDE tab while messages are flowing via WhatsApp. The two writers share a `.jsonl` transcript and can race.
 

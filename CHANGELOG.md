@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0] — 2026-06-02
+
+### Changed
+- **Replaced `@open-wa/wa-automate` with `@whiskeysockets/baileys` as the WhatsApp transport.**
+  Baileys speaks the WhatsApp multi-device WebSocket protocol directly — no Chromium dependency.
+  - Extension install footprint shrinks dramatically (no ~150 MB Puppeteer/Chromium download).
+  - Faster cold start: no browser process to spin up.
+  - No outbound message branding/nag injected by the library.
+  - QR code panel works the same way; auth state cached under the extension's global storage as before.
+
+### Removed
+- `claudeWhatsApp.openWa.headless` setting (Baileys has no browser to configure).
+- `claudeWhatsApp.openWa.disableSpins` setting.
+
 ## [0.1.0] — 2026-06-02
 
 ### Initial release

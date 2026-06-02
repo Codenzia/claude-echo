@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { Binding, BindingStore } from './bindingStore';
 import { ActivityEntry, ActivityLog } from './activityLog';
-import { OpenWaStatus } from './openWaClient';
+import { WaStatus } from './whatsappClient';
 
 export type TreeNode = HeaderNode | InfoNode | ActionNode | ActivityNode;
 
@@ -60,7 +60,7 @@ export class BindingProvider implements vscode.TreeDataProvider<TreeNode> {
     private readonly store: BindingStore,
     private readonly activity: ActivityLog,
     private readonly workspaceFolder: string | undefined,
-    private readonly getStatus: () => OpenWaStatus
+    private readonly getStatus: () => WaStatus
   ) {
     store.onChange(() => this._onDidChange.fire());
     activity.onChange(() => this._onDidChange.fire());
@@ -111,23 +111,23 @@ export class BindingProvider implements vscode.TreeDataProvider<TreeNode> {
   }
 }
 
-function describeStatus(s: OpenWaStatus): string {
+function describeStatus(s: WaStatus): string {
   switch (s) {
     case 'idle': return 'Not running';
     case 'starting': return 'Starting…';
     case 'qr': return 'Waiting for QR scan';
-    case 'authenticated': return 'Authenticated, finishing setup…';
+    case 'connecting': return 'Reconnecting…';
     case 'ready': return 'Listening on WhatsApp';
     case 'stopping': return 'Stopping…';
     case 'error': return 'Error (see logs)';
   }
 }
 
-function statusIcon(s: OpenWaStatus): string {
+function statusIcon(s: WaStatus): string {
   switch (s) {
     case 'ready': return 'check';
     case 'starting':
-    case 'authenticated':
+    case 'connecting':
     case 'stopping': return 'sync';
     case 'qr': return 'device-mobile';
     case 'error': return 'error';

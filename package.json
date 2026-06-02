@@ -2,7 +2,7 @@
   "name": "claude-whatsapp-bridge",
   "displayName": "Claude WhatsApp Bridge",
   "description": "Chat with your Claude Code agent from WhatsApp. Binds a Claude Code session to your WhatsApp number via open-wa.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "codenzia",
   "author": {
     "name": "Codenzia",
@@ -22,8 +22,7 @@
     "claude code",
     "anthropic",
     "whatsapp",
-    "openwa",
-    "open-wa",
+    "baileys",
     "bridge",
     "remote",
     "agent",
@@ -160,16 +159,6 @@
           "minimum": 5000,
           "description": "Maximum time (ms) to wait for the Claude CLI to respond before sending a timeout reply on WhatsApp."
         },
-        "claudeWhatsApp.openWa.headless": {
-          "type": "boolean",
-          "default": true,
-          "description": "Run the open-wa Chromium controller headless. Disable to debug the underlying browser."
-        },
-        "claudeWhatsApp.openWa.disableSpins": {
-          "type": "boolean",
-          "default": true,
-          "description": "Suppress open-wa CLI spinner noise."
-        },
         "claudeWhatsApp.autoStart": {
           "type": "boolean",
           "default": true,
@@ -190,7 +179,7 @@
     "typescript": "^5.4.0"
   },
   "dependencies": {
-    "@open-wa/wa-automate": "^4.76.0",
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
     "qrcode": "^1.5.3"
   }
 }
