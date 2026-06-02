@@ -1,0 +1,13 @@
+node_modules/
+out/
+*.vsix
+.vscode-test/
+*.log
+.DS_Store
+wa-session/
+
+# managed
+**.data.json
+**.node-persist**
+**_IGNORE_**
+# end managed

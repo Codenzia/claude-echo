@@ -1,0 +1,196 @@
+{
+  "name": "claude-whatsapp-bridge",
+  "displayName": "Claude WhatsApp Bridge",
+  "description": "Chat with your Claude Code agent from WhatsApp. Binds a Claude Code session to your WhatsApp number via open-wa.",
+  "version": "0.1.0",
+  "publisher": "codenzia",
+  "author": {
+    "name": "Codenzia",
+    "url": "https://codenzia.com"
+  },
+  "license": "MIT",
+  "homepage": "https://codenzia.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Codenzia/claude-whatsapp-bridge"
+  },
+  "bugs": {
+    "url": "https://github.com/Codenzia/claude-whatsapp-bridge/issues"
+  },
+  "keywords": [
+    "claude",
+    "claude code",
+    "anthropic",
+    "whatsapp",
+    "openwa",
+    "open-wa",
+    "bridge",
+    "remote",
+    "agent",
+    "codenzia"
+  ],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "icon": "resources/icon-marketplace.png",
+  "galleryBanner": {
+    "color": "#0B141A",
+    "theme": "dark"
+  },
+  "main": "./out/extension.js",
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "claudeWhatsApp.bindSession",
+        "title": "Claude WhatsApp: Bind a Claude Code session…",
+        "icon": "$(link)"
+      },
+      {
+        "command": "claudeWhatsApp.unbind",
+        "title": "Claude WhatsApp: Unbind current session",
+        "icon": "$(unlink)"
+      },
+      {
+        "command": "claudeWhatsApp.start",
+        "title": "Claude WhatsApp: Start bridge",
+        "icon": "$(play)"
+      },
+      {
+        "command": "claudeWhatsApp.stop",
+        "title": "Claude WhatsApp: Stop bridge",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "claudeWhatsApp.showQR",
+        "title": "Claude WhatsApp: Show WhatsApp QR code",
+        "icon": "$(device-mobile)"
+      },
+      {
+        "command": "claudeWhatsApp.testSend",
+        "title": "Claude WhatsApp: Send test message",
+        "icon": "$(send)"
+      },
+      {
+        "command": "claudeWhatsApp.refresh",
+        "title": "Claude WhatsApp: Refresh",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "claudeWhatsApp.showLogs",
+        "title": "Claude WhatsApp: Show logs",
+        "icon": "$(output)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "claudeWhatsApp",
+          "title": "Claude WhatsApp",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "claudeWhatsApp": [
+        {
+          "id": "claudeWhatsApp.bridge",
+          "name": "Bridge",
+          "icon": "resources/icon.svg",
+          "contextualTitle": "Claude WhatsApp"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "claudeWhatsApp.bridge",
+        "contents": "No Claude Code session bound yet.\n\nBind a session to your WhatsApp number to chat with your agent from anywhere.\n\n[Bind a Claude Code session](command:claudeWhatsApp.bindSession)\n\nDeveloped by [Codenzia](https://codenzia.com)."
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "claudeWhatsApp.bindSession",
+          "when": "view == claudeWhatsApp.bridge",
+          "group": "navigation@1"
+        },
+        {
+          "command": "claudeWhatsApp.start",
+          "when": "view == claudeWhatsApp.bridge && !claudeWhatsApp:running",
+          "group": "navigation@2"
+        },
+        {
+          "command": "claudeWhatsApp.stop",
+          "when": "view == claudeWhatsApp.bridge && claudeWhatsApp:running",
+          "group": "navigation@2"
+        },
+        {
+          "command": "claudeWhatsApp.showLogs",
+          "when": "view == claudeWhatsApp.bridge",
+          "group": "navigation@3"
+        },
+        {
+          "command": "claudeWhatsApp.refresh",
+          "when": "view == claudeWhatsApp.bridge",
+          "group": "navigation@4"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Claude WhatsApp Bridge",
+      "properties": {
+        "claudeWhatsApp.allowedNumber": {
+          "type": "string",
+          "default": "",
+          "description": "Single allowed WhatsApp number in E.164 format (e.g. +15551234567). Messages from any other number are ignored. REQUIRED."
+        },
+        "claudeWhatsApp.claudeCliPath": {
+          "type": "string",
+          "default": "claude",
+          "description": "Path to the Claude Code CLI binary. Default assumes it is on PATH."
+        },
+        "claudeWhatsApp.responseTimeoutMs": {
+          "type": "number",
+          "default": 120000,
+          "minimum": 5000,
+          "description": "Maximum time (ms) to wait for the Claude CLI to respond before sending a timeout reply on WhatsApp."
+        },
+        "claudeWhatsApp.openWa.headless": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run the open-wa Chromium controller headless. Disable to debug the underlying browser."
+        },
+        "claudeWhatsApp.openWa.disableSpins": {
+          "type": "boolean",
+          "default": true,
+          "description": "Suppress open-wa CLI spinner noise."
+        },
+        "claudeWhatsApp.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start the bridge on workspace activation when a binding exists."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/qrcode": "^1.5.5",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "@open-wa/wa-automate": "^4.76.0",
+    "qrcode": "^1.5.3"
+  }
+}
