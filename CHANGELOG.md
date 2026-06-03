@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.1] — 2026-06-03
+
+### Changed
+- **Session scanner now lists every transcript on disk for the workspace,** not just sessions with a currently-running Claude Code process. The previous behavior missed any tab that hadn't been re-clicked since the last VSCode reload (each Claude tab is its own process). Bind picker now shows the full history sorted by most recently active.
+
 ## [0.4.0] — 2026-06-03
 
 ### Renamed

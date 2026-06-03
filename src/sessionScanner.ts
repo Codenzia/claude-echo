@@ -106,22 +106,33 @@ function formatTitle(raw: string, fallbackTimestamp: number): string {
 }
 
 export function listSessionsForWorkspace(workspaceDir: string): SessionInfo[] {
-  const sessions = findRunningSessions(workspaceDir);
+  // Source of truth: every .jsonl transcript stored by Claude Code for this
+  // workspace's project key. This catches all historical conversations, not
+  // just the ones whose process happens to be running right now.
   const projectKey = projectKeyFor(workspaceDir);
+  const projectDir = path.join(PROJECTS_ROOT, projectKey);
+  if (!fs.existsSync(projectDir)) { return []; }
+
   const out: SessionInfo[] = [];
-  for (const s of sessions) {
-    const tx = path.join(PROJECTS_ROOT, projectKey, `${s.sessionId}.jsonl`);
-    if (!fs.existsSync(tx)) { continue; }
+  for (const name of fs.readdirSync(projectDir)) {
+    if (!name.endsWith('.jsonl')) { continue; }
+    const sessionId = name.slice(0, -'.jsonl'.length);
+    const tx = path.join(projectDir, name);
+    let mtime = 0;
+    try {
+      mtime = fs.statSync(tx).mtimeMs;
+    } catch { continue; }
     const raw = firstUserText(tx);
     if (!raw) { continue; }
     out.push({
-      sessionId: s.sessionId,
-      title: formatTitle(raw, s.startedAt),
-      startedAt: s.startedAt,
-      cwd: s.cwd
+      sessionId,
+      title: formatTitle(raw, mtime),
+      startedAt: mtime,
+      cwd: workspaceDir
     });
   }
-  out.sort((a, b) => a.startedAt - b.startedAt);
+  // Most recently active first.
+  out.sort((a, b) => b.startedAt - a.startedAt);
   return out;
 }
 

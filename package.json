@@ -2,7 +2,7 @@
   "name": "claude-echo",
   "displayName": "Claude Echo",
   "description": "Chat with your Claude Code agent from WhatsApp, Telegram, Discord, or Slack.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "codenzia",
   "author": {
     "name": "Codenzia",
