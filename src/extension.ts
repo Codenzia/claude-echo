@@ -12,6 +12,7 @@ import { redactBody } from './redact';
 import { checkChallenge, formatChallenge, generateChallenge } from './verification';
 import { slugifyTitle, uniqueTag } from './tagging';
 import { parseMessage } from './commandParser';
+import { renderHelp } from './commands';
 import { Gateway, GatewayKind, GatewayStatus, IncomingMessage, gatewayDisplayName } from './gateway';
 import { WhatsAppClient, digitsOnly } from './whatsappClient';
 import { TelegramClient } from './telegramClient';
@@ -62,31 +63,7 @@ function listText(ws: WorkspaceBinding): string {
 }
 
 function helpText(): string {
-  return [
-    'Claude Echo commands:',
-    '',
-    'Routing:',
-    '  /list             list bound sessions',
-    '  /where            show currently active session',
-    '  /use <tag>        switch active session',
-    '  /help             this message',
-    '  #<tag> <text>     one-off route to a specific session',
-    '',
-    'Per-message modifiers (combine with #tag in any order):',
-    '  /plan <text>      plan mode — returns a plan, no execution',
-    '  /auto <text>      acceptEdits — auto-applies file edits',
-    '  /yolo <text>      bypassPermissions (use rarely; no permission checks)',
-    '  /opus <text>      run this turn on Opus',
-    '  /sonnet <text>    run this turn on Sonnet',
-    '  /haiku <text>     run this turn on Haiku',
-    '',
-    'Examples:',
-    '  /plan how do we ship this?',
-    '  #bmp /opus design the data model',
-    '  /yolo #serveeta deploy the staging build',
-    '',
-    'Anything without a prefix goes to the active session.'
-  ].join('\n');
+  return renderHelp();
 }
 
 function createGateway(kind: GatewayKind, ctx: vscode.ExtensionContext): Gateway {

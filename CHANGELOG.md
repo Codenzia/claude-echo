@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.4.3] — 2026-06-03
+
+### Changed
+- **Command registry as single source of truth.** Added [src/commands.ts](src/commands.ts) — every chat-side verb (control, routing prefix, mode modifier, model modifier) is declared once, and both the parser AND the `/help` text generator derive from it. Adding a new command now means a single entry; it can't silently drift out of the help reference. Help output is rendered from `renderHelp()` so any new command becomes user-visible the moment it's recognized.
+
 ## [0.4.2] — 2026-06-03
 
 ### Added — per-message mode and model overrides

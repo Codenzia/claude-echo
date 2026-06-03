@@ -1,5 +1,6 @@
-export type PermissionMode = 'plan' | 'acceptEdits' | 'bypassPermissions';
-export type ModelAlias = 'opus' | 'sonnet' | 'haiku';
+import { controlVerbs, modeVerbToMode, modelVerbToModel, PermissionMode, ModelAlias } from './commands';
+
+export type { PermissionMode, ModelAlias };
 
 export type Parsed =
   | { kind: 'message'; tag?: string; body: string; mode?: PermissionMode; model?: ModelAlias }
@@ -8,32 +9,12 @@ export type Parsed =
   | { kind: 'where' }
   | { kind: 'help' };
 
-/** Per-message modifier verbs that translate into Claude CLI flags. */
-const MODE_VERBS: Record<string, PermissionMode> = {
-  plan: 'plan',
-  auto: 'acceptEdits',
-  yolo: 'bypassPermissions'
-};
-const MODEL_VERBS: Record<string, ModelAlias> = {
-  opus: 'opus',
-  sonnet: 'sonnet',
-  haiku: 'haiku'
-};
+const CTRL = controlVerbs();
 
 /**
- * Parses a chat-side message into a routable intent.
- *
- *   "/list"                          -> { kind: 'list' }
- *   "/use serveeta"                  -> { kind: 'use', tag: 'serveeta' }
- *   "/where" / "/help"               -> { kind: 'where' | 'help' }
- *   "#bmp deploy?"                   -> { kind: 'message', tag: 'bmp', body: 'deploy?' }
- *   "/plan how should we proceed?"   -> { kind: 'message', mode: 'plan', body: '...' }
- *   "/opus design the api"           -> { kind: 'message', model: 'opus', body: '...' }
- *   "#bmp /plan migration?"          -> { kind: 'message', tag: 'bmp', mode: 'plan', body: '...' }
- *   "/auto #serveeta refactor"       -> { kind: 'message', tag: 'serveeta', mode: 'acceptEdits', body: '...' }
- *
- * Modifiers can appear in any order before the body; routing/control commands
- * (/list, /use, /where, /help) must be the first token.
+ * Parses a chat-side message into a routable intent. Verb tables come from
+ * `commands.ts` so adding a new command in one place wires both the parser
+ * and the /help text generator at once.
  */
 export function parseMessage(rawBody: string): Parsed {
   let body = (rawBody || '').trim();
@@ -42,17 +23,19 @@ export function parseMessage(rawBody: string): Parsed {
   // Routing/control verbs win if they're the FIRST token.
   if (body.startsWith('/')) {
     const verb = firstToken(body).slice(1).toLowerCase();
-    if (verb === 'list')  { return { kind: 'list' }; }
-    if (verb === 'where') { return { kind: 'where' }; }
-    if (verb === 'help')  { return { kind: 'help' }; }
-    if (verb === 'use' || verb === 'switch') {
-      const tag = normalizeTag(restAfterFirstToken(body));
-      if (!tag) { return { kind: 'help' }; }
-      return { kind: 'use', tag };
+    if (CTRL.has(verb)) {
+      if (verb === 'list')  { return { kind: 'list' }; }
+      if (verb === 'where') { return { kind: 'where' }; }
+      if (verb === 'help')  { return { kind: 'help' }; }
+      if (verb === 'use' || verb === 'switch') {
+        const tag = normalizeTag(restAfterFirstToken(body));
+        if (!tag) { return { kind: 'help' }; }
+        return { kind: 'use', tag };
+      }
     }
   }
 
-  // Strip modifier prefixes in any order: /plan, /auto, /yolo, /opus, /sonnet, /haiku, #tag.
+  // Modifier prefixes in any order: #tag, /plan, /auto, /yolo, /opus, /sonnet, /haiku.
   let tag: string | undefined;
   let mode: PermissionMode | undefined;
   let model: ModelAlias | undefined;
@@ -74,17 +57,23 @@ export function parseMessage(rawBody: string): Parsed {
     }
     if (body.startsWith('/')) {
       const verb = firstToken(body).slice(1).toLowerCase();
-      if (verb in MODE_VERBS && !mode) {
-        mode = MODE_VERBS[verb];
-        body = restAfterFirstToken(body);
-        progressed = true;
-        continue;
+      if (!mode) {
+        const m = modeVerbToMode(verb);
+        if (m) {
+          mode = m;
+          body = restAfterFirstToken(body);
+          progressed = true;
+          continue;
+        }
       }
-      if (verb in MODEL_VERBS && !model) {
-        model = MODEL_VERBS[verb];
-        body = restAfterFirstToken(body);
-        progressed = true;
-        continue;
+      if (!model) {
+        const md = modelVerbToModel(verb);
+        if (md) {
+          model = md;
+          body = restAfterFirstToken(body);
+          progressed = true;
+          continue;
+        }
       }
     }
   }
