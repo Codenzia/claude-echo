@@ -631,9 +631,28 @@ export async function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push({ dispose: () => stopBridge() });
 
   const autoStartWs = root ? store.get(root) : undefined;
-  if (cfg().get<boolean>('autoStart', false) && autoStartWs?.verified && autoStartWs.sessions.length > 0) {
+  if (cfg().get<boolean>('autoStart', true) && autoStartWs?.verified && autoStartWs.sessions.length > 0) {
     logInfo('autoStart enabled with a verified binding; starting bridge in background.');
-    startBridge({ interactive: false }).catch((err) => logError('autoStart failed', err));
+    startBridge({ interactive: false })
+      .then(() => maybeShowFirstAutoStartToast(context, autoStartWs))
+      .catch((err) => logError('autoStart failed', err));
+  }
+}
+
+const TOAST_SHOWN_KEY = 'claudeEcho.autoStartToastShown.v1';
+
+async function maybeShowFirstAutoStartToast(ctx: vscode.ExtensionContext, ws: { gateway: string; sessions: { tag: string }[] }): Promise<void> {
+  if (ctx.globalState.get<boolean>(TOAST_SHOWN_KEY, false)) { return; }
+  await ctx.globalState.update(TOAST_SHOWN_KEY, true);
+  const tag = ws.sessions[0]?.tag ?? '(no sessions)';
+  const choice = await vscode.window.showInformationMessage(
+    `Claude Echo: bridge auto-started on ${ws.gateway} (active: ${tag}). It will start automatically every time you open this workspace.`,
+    'OK',
+    'Disable autoStart'
+  );
+  if (choice === 'Disable autoStart') {
+    await vscode.workspace.getConfiguration('claudeEcho').update('autoStart', false, vscode.ConfigurationTarget.Global);
+    vscode.window.showInformationMessage('Auto-start turned off. Start the bridge manually from the sidebar when you want it active.');
   }
 }
 

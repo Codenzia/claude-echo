@@ -2,7 +2,7 @@
   "name": "claude-echo",
   "displayName": "Claude Echo",
   "description": "Chat with your Claude Code agent from WhatsApp, Telegram, Discord, or Slack.",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "publisher": "codenzia",
   "author": {
     "name": "Codenzia",
@@ -112,8 +112,8 @@
         },
         "claudeEcho.autoStart": {
           "type": "boolean",
-          "default": false,
-          "description": "Automatically start the bridge on workspace activation when a verified binding exists."
+          "default": true,
+          "description": "Automatically start the bridge on workspace activation when a verified binding exists. ON by default — the verification handshake counts as your consent. Turn off if you want to start the bridge manually each session."
         },
         "claudeEcho.maxMessagesPerHour": {
           "type": "number",

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.4] — 2026-06-04
+
+### Changed
+- **`claudeEcho.autoStart` default flipped from `false` to `true`.** Verified bindings now restart automatically when VSCode opens — the verification handshake counts as your consent, and the bridge dying on every reload defeated the "talk to your agent from anywhere" promise.
+- One-time information toast on the first auto-start ("Bridge auto-started on Slack — disable in settings if you didn't want this") with a quick **Disable autoStart** action so the safety concern is addressed at the moment it'd matter.
+
 ## [0.4.3] — 2026-06-03
 
 ### Changed
