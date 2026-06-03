@@ -64,12 +64,28 @@ function listText(ws: WorkspaceBinding): string {
 function helpText(): string {
   return [
     'Claude Echo commands:',
-    '  /list           list bound sessions',
-    '  /where          show currently active session',
-    '  /use <tag>      switch active session',
-    '  /help           this message',
-    '  #<tag> <text>   one-off route to a specific session',
-    'Anything else is forwarded to the active session.'
+    '',
+    'Routing:',
+    '  /list             list bound sessions',
+    '  /where            show currently active session',
+    '  /use <tag>        switch active session',
+    '  /help             this message',
+    '  #<tag> <text>     one-off route to a specific session',
+    '',
+    'Per-message modifiers (combine with #tag in any order):',
+    '  /plan <text>      plan mode — returns a plan, no execution',
+    '  /auto <text>      acceptEdits — auto-applies file edits',
+    '  /yolo <text>      bypassPermissions (use rarely; no permission checks)',
+    '  /opus <text>      run this turn on Opus',
+    '  /sonnet <text>    run this turn on Sonnet',
+    '  /haiku <text>     run this turn on Haiku',
+    '',
+    'Examples:',
+    '  /plan how do we ship this?',
+    '  #bmp /opus design the data model',
+    '  /yolo #serveeta deploy the staging build',
+    '',
+    'Anything without a prefix goes to the active session.'
   ].join('\n');
 }
 
@@ -251,8 +267,10 @@ export async function activate(context: vscode.ExtensionContext) {
       truncated = true;
     }
 
-    activity.push('inbound', `> [${targetBinding.tag}] ${redactBody(prompt, verbose)}${truncated ? ' [truncated]' : ''}`);
-    logInfo(`Inbound -> ${targetBinding.tag}: ${redactBody(prompt, verbose)}${truncated ? ' (truncated)' : ''}`);
+    const modifierTag = [parsed.mode, parsed.model].filter(Boolean).join('|');
+    const modifierSuffix = modifierTag ? ` {${modifierTag}}` : '';
+    activity.push('inbound', `> [${targetBinding.tag}${modifierSuffix}] ${redactBody(prompt, verbose)}${truncated ? ' [truncated]' : ''}`);
+    logInfo(`Inbound -> ${targetBinding.tag}${modifierSuffix}: ${redactBody(prompt, verbose)}${truncated ? ' (truncated)' : ''}`);
 
     const timeoutMs = cfg().get<number>('responseTimeoutMs', 120_000);
     const cliPath = cfg().get<string>('claudeCliPath', 'claude') || 'claude';
@@ -263,7 +281,9 @@ export async function activate(context: vscode.ExtensionContext) {
       sessionId: targetBinding.sessionId,
       cwd: ws.workspaceFolder,
       prompt,
-      timeoutMs
+      timeoutMs,
+      permissionMode: parsed.mode,
+      model: parsed.model
     });
 
     if (!result.ok) {

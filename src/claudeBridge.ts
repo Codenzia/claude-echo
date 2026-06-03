@@ -7,6 +7,10 @@ export interface RunOptions {
   cwd: string;
   prompt: string;
   timeoutMs: number;
+  /** Optional Claude CLI --permission-mode override (e.g. 'plan'). */
+  permissionMode?: string;
+  /** Optional Claude CLI --model override (e.g. 'opus', 'sonnet', 'haiku'). */
+  model?: string;
 }
 
 export interface RunResult {
@@ -32,9 +36,14 @@ export async function runClaudeCli(opts: RunOptions): Promise<RunResult> {
     '--print',
     '--resume', opts.sessionId,
     '--output-format', 'json',
-    '--',
-    opts.prompt
   ];
+  if (opts.permissionMode) {
+    args.push('--permission-mode', opts.permissionMode);
+  }
+  if (opts.model) {
+    args.push('--model', opts.model);
+  }
+  args.push('--', opts.prompt);
   const startedAt = Date.now();
   return new Promise<RunResult>((resolve) => {
     logInfo(`Spawning: ${opts.cliPath} --print --resume ${opts.sessionId} --output-format json "${opts.prompt.slice(0, 60)}${opts.prompt.length > 60 ? '…' : ''}"`);

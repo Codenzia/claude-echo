@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.2] — 2026-06-03
+
+### Added — per-message mode and model overrides
+- **`/plan <text>`** — runs the turn with `--permission-mode plan` (returns a plan, no execution). Useful for thinking-out-loud questions from chat.
+- **`/auto <text>`** — `--permission-mode acceptEdits`. Auto-applies file edits for trusted operations.
+- **`/yolo <text>`** — `--permission-mode bypassPermissions`. Use rarely; no permission checks.
+- **`/opus <text>`** / **`/sonnet <text>`** / **`/haiku <text>`** — pin the model for a single turn.
+- Modifiers compose with routing — `#bmp /plan migration?`, `/auto #serveeta refactor`, etc., in any order.
+- `/help` now lists all the new options with examples.
+- Activity log entries include `{plan}`, `{opus|plan}` suffixes when modifiers are in play.
+
 ## [0.4.1] — 2026-06-03
 
 ### Changed
